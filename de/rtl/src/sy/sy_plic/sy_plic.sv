@@ -26,7 +26,7 @@
 // Other :
 // -FHDR------------------------------------------------------------------------
 
-module swf_plic #(
+module sy_plic #(
     parameter int unsigned ADDR_WIDTH   = 32,
     parameter int unsigned DATA_WIDTH   = 32,
     parameter int unsigned MAX_PRI      = 7,

@@ -644,4 +644,4 @@ assign alu_dec__bp1_f_or_x_o = bp1_alu_en;
 
 // synopsys translate_off
 // synopsys translate_on
-endmodule : swf_ppl_alu
+endmodule : sy_ppl_alu

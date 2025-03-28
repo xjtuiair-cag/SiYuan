@@ -156,12 +156,12 @@ always_comb begin
     // default
     // FSM of control module
     next_state = cur_state;
-    // The privilege, mode, and current PC of SWF core
+    // The privilege, mode, and current PC of Sy core
     cur_pc = cur_pc_q;
     // output signals
     // -- Drive the pipelien to work
     ctrl_fet__act_o = 1'b0;
-    // -- SWF core status and information signals
+    // -- Sy core status and information signals
     stat_sleep_o = 1'b0;
     ppl_icache_flush_o = 1'b0;
     ppl_dcache_flush_o = 1'b0;
@@ -185,7 +185,7 @@ always_comb begin
         ctrl_xret_req = 1'b1;
     end else if(csr_ctrl__set_debug_i) begin
         ctrl_debug_req = 1'b1;
-        cur_pc = SwfDefaultConfig.DmBaseAddress + dbg_pkg::HaltAddress;
+        cur_pc = SyDefaultConfig.DmBaseAddress + dbg_pkg::HaltAddress;
     end
     // // system instr
     // if(alu_ctrl__wfi_en_i && !csr_ctrl__debug_mode_i && !csr_ctrl__ex_valid_i) begin
@@ -260,7 +260,7 @@ always_comb begin
             end
         end
         // FSM_SLEEP: begin
-        //     // SWF core fall into sleep mode.
+        //     // SY core fall into sleep mode.
         //     stat_sleep_o = 1'b1;
         //     if(csr_ctrl__wfi_wakeup_i) begin
         //         next_state = FSM_PROC_EVENT;

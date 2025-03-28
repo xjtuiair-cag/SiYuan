@@ -56,18 +56,6 @@ module sy_soc_fpga
     input  logic         spi_miso    ,
     output logic         spi_ss      ,
     output logic         spi_clk_o   ,
-    // Ethernet clk
-    input  wire          clk_125M_p,
-    input  wire          clk_125M_n,
-    // SGMII interface
-    output wire          txp,                   // Differential +ve of serial transmission from PMA to PMD.
-    output wire          txn,                   // Differential -ve of serial transmission from PMA to PMD.
-    input  wire          rxp,                   // Differential +ve for serial reception from PMD to PMA.
-    input  wire          rxn,                   // Differential -ve for serial reception from PMD to PMA.
-
-    output wire          eth_rst_n   ,
-    inout  wire          eth_mdio    ,
-    output logic         eth_mdc     ,
     // Uart
     input  logic         rx          ,
     output logic         tx
@@ -102,11 +90,6 @@ module sy_soc_fpga
     logic                           ddr_clock_out;
     logic                           ddr_sync_reset;
     logic                           clk;
-    logic                           clk_125M;            
-    logic                           clk_125M_90;            
-    logic                           clk_125M_buf_p;            
-    logic                           clk_125M_buf_n;            
-    logic                           clk_200M;
     logic                           rst_n;
     logic                           rst;
     logic                           rst_i;
@@ -118,8 +101,6 @@ module sy_soc_fpga
 //======================================================================================================================
     xlnx_clk_gen i_xlnx_clk_gen (
       .clk_out1 ( clk           ), // 50 MHz
-      .clk_out2 ( clk_125M      ), // 125 MHz clock
-      .clk_out3 ( clk_125M_90   ), // 125 MHz clock, 90 degree phase
       .reset    ( cpu_reset     ),
       .locked   ( pll_locked    ),
       .clk_in1  ( ddr_clock_out )
@@ -395,32 +376,8 @@ module sy_soc_fpga
         assign led = '0;
     end
 //======================================================================================================================
-// Ethernet
+// Ethernet (TODO)
 //======================================================================================================================
-    assign clk_200M = ddr_clock_out;
-    if (ETHERNET_EN) begin
-        sy_ethernet eth(
-            .clk_i              (clk_i),                  
-            .clk_125M_p         (clk_125M_p),                
-            .clk_125M_n         (clk_125M_n),                   
-            .clk_200M_i         (clk_200M),                
-            .rst_ni             (rst_i),                       
-            .eth_rstn_o         (eth_rst_n),                
-            .eth_txp_o          (txp),                 
-            .eth_txn_o          (txn),                   
-            .eth_rxp_i          (rxp),               
-            .eth_rxn_i          (rxn),               
-            .eth_mdio           (eth_mdio),              
-            .eth_mdc            (eth_mdc),                 
-            .eth_irq_o          (irq_sources[2]),               
-            .master             (phri_bus_slave[ETHERNET])
-        );       
-    end else begin
-        assign txp = '0;
-        assign txn = '0;
-        assign eth_rst_n = '0;
-        assign eth_mdc = '0;
-    end
 
 //======================================================================================================================
 // Signals for simulation or probes

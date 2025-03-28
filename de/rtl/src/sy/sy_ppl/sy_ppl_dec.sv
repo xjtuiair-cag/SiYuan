@@ -1341,4 +1341,4 @@ assign wb_bus_hazard = ex0_act && (
 
 // synopsys translate_off
 // synopsys translate_on
-endmodule : swf_ppl_dec
+endmodule : sy_ppl_dec

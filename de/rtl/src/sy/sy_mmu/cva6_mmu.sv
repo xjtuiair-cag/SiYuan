@@ -21,7 +21,7 @@ module cva6_mmu
       parameter int unsigned INSTR_TLB_ENTRIES     = 4,
       parameter int unsigned DATA_TLB_ENTRIES      = 4,
       parameter int unsigned ASID_WIDTH            = 1,
-      parameter sy_cfg_t ArianeCfg = SwfDefaultConfig
+      parameter sy_cfg_t ArianeCfg = SyDefaultConfig
 ) (
         input  logic                            clk_i,
         input  logic                            rst_ni,

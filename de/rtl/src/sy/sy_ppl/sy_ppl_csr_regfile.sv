@@ -244,7 +244,7 @@ module sy_ppl_csr_regfile
                 CSR_MTVAL   :       csr_rdata = mtval_q;       
                 CSR_MIP     :       csr_rdata = mip_q;       
                 CSR_MVENDORID:      csr_rdata = 64'b0; // not implemented
-                CSR_MARCHID:        csr_rdata = SWF_MARCHID;
+                CSR_MARCHID:        csr_rdata = SY_MARCHID;
                 CSR_MIMPID:         csr_rdata = 64'b0; // not implemented
                 CSR_MHARTID:        csr_rdata = hart_id_i;
                 CSR_MCYCLE:         csr_rdata = cycle_q;
@@ -794,7 +794,7 @@ module sy_ppl_csr_regfile
             csr_ctrl__trap_vec_o = {stvec_q[63:2], 2'b0};
         end 
         if(debug_mode_q) begin
-            csr_ctrl__trap_vec_o = SwfDefaultConfig.DmBaseAddress + dbg_pkg::ExceptionAddress;
+            csr_ctrl__trap_vec_o = SyDefaultConfig.DmBaseAddress + dbg_pkg::ExceptionAddress;
         end
         if((mtvec_q[0] || stvec_q[0]) && ex.cause[63]) begin
             csr_ctrl__trap_vec_o[7:2] = ex.cause[5:0];
