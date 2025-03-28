@@ -18,7 +18,7 @@
           device_type = "cpu";
           reg = <0>;
           status = "okay";
-          compatible = "cag, swf", "riscv";
+          compatible = "cag, sy", "riscv";
           riscv,isa = "rv64imafdc";
           mmu-type = "riscv,sv39";
           tlb-split;
@@ -39,7 +39,7 @@
     L26: soc {
         #address-cells = <2>;
         #size-cells = <2>;
-        compatible = "cag,swf-bare-soc", "simple-bus";
+        compatible = "cag,sy-bare-soc", "simple-bus";
         ranges;
     
         clint@2000000 {

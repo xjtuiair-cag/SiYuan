@@ -20,7 +20,7 @@ MAIN_SV = $(MAIN:.elf=.sv)
 
 #.PHONY: clean
 
-$(MAIN): swf.dtb $(OBJS_C) $(OBJS_S) linker.lds
+$(MAIN): sy.dtb $(OBJS_C) $(OBJS_S) linker.lds
 	$(CC) $(CFLAGS) $(LDFLAGS) $(INCLUDES) -Tlinker.lds $(OBJS_S) $(OBJS_C) -o $(MAIN)
 	@echo "LD    >= $(MAIN)"
 
