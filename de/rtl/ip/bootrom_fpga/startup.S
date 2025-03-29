@@ -21,4 +21,4 @@ _prog_start:
   .globl _dtb
   .align 4, 0
 _dtb:
-  .incbin "swf.dtb"
+  .incbin "sy.dtb"
