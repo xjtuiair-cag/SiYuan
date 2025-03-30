@@ -7,3 +7,6 @@
 [submodule "de/rtl/ip/fpu"]
 	path = de/rtl/ip/fpu
 	url = https://github.com/openhwgroup/cvfpu.git
+[submodule "de/rtl/ip/cvfpu"]
+	path = de/rtl/ip/cvfpu
+	url = https://github.com/2002liush/cvfpu.git
