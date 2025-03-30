@@ -54,7 +54,7 @@ if __name__ == "__main__":
         ethernet_loc = 0 
 
     sys_bus_region = max(phri_slave_num, ctrl_slave_num)
-    output = "// Auto Generated, don't modify!!!\npackage swf_soc;\n"
+    output = "// Auto Generated, don't modify!!!\npackage sy_soc;\n"
     # add core num
     output += "parameter integer CORE_NUM = {};\n".format(core_num)
     output += '''
