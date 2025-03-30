@@ -1,3 +1,6 @@
 [submodule "de/ip/rv_plic"]
 	path = de/ip/rv_plic
 	url = https://github.com/2002liush/rv_plic.git
+[submodule "de/ip/fpu"]
+	path = de/ip/fpu
+	url = https://github.com/2002liush/cvfpu.git
