@@ -1,9 +1,4 @@
-[submodule "de/rtl/ip/apb_uart"]
-	path = de/rtl/ip/apb_uart
-	url = https://github.com/pulp-platform/apb_uart.git
-[submodule "de/rtl/ip/rv_plic"]
-	path = de/rtl/ip/rv_plic
-	url = https://github.com/pulp-platform/rv_plic.git
-[submodule "de/rtl/ip/fpu"]
-	path = de/rtl/ip/fpu
-	url = https://github.com/2002liush/cvfpu.git
+
+[submodule "de/ip/plic"]
+	path = de/ip/plic
+	url = https://github.com/2002liush/rv_plic.git
