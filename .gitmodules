@@ -4,3 +4,6 @@
 [submodule "de/ip/fpu"]
 	path = de/ip/fpu
 	url = https://github.com/2002liush/cvfpu.git
+[submodule "de/ip/apb_uart"]
+	path = de/ip/apb_uart
+	url = https://github.com/pulp-platform/apb_uart.git
