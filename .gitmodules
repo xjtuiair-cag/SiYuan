@@ -4,3 +4,6 @@
 [submodule "de/rtl/ip/rv_plic"]
 	path = de/rtl/ip/rv_plic
 	url = https://github.com/pulp-platform/rv_plic.git
+[submodule "de/rtl/ip/fpu"]
+	path = de/rtl/ip/fpu
+	url = https://github.com/2002liush/cvfpu.git
