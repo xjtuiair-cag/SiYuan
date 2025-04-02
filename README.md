@@ -47,7 +47,7 @@ make fpga
 ```
 4. Prepare SD card
 
-Follow this to build linux image and prepare SD card.
+Follow [this](https://github.com/xjtuiair-cag/SiYuan-sdk) to build linux image and prepare SD card.
 
 5. Run SiYuan 
 
