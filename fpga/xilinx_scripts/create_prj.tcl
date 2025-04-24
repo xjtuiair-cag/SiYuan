@@ -14,8 +14,13 @@
 
 # Author: Florian Zaruba <zarubaf@iis.ee.ethz.ch>
 
-# VC707 available
-add_files -fileset constrs_1 -norecurse ../xilinx_constraint/vc707.xdc
+if {$::env(BOARD) eq "genesys2"} {
+    add_files -fileset constrs_1 -norecurse ../xilinx_constraint/genesys2.xdc
+} elseif {$::env(BOARD) eq "vc707"} {
+    add_files -fileset constrs_1 -norecurse ../xilinx_constraint/vc707.xdc
+} else {
+    exit 1
+}
 
 read_ip ../xilinx_ip/xlnx_mig_7_ddr3/ip/xlnx_mig_7_ddr3.xci
 read_ip ../xilinx_ip/xlnx_axi_clock_converter/ip/xlnx_axi_clock_converter.xci
@@ -29,7 +34,13 @@ read_ip ../xilinx_ip/sdp_512x64sd1/ip/sdp_512x64sd1.xci
 
 source ../xilinx_scripts/add_sources.tcl
 
-set_property top sy_soc_fpga [current_fileset]
+if {$::env(BOARD) eq "genesys2"} {
+    set_property top sy_soc_genesys2 [current_fileset]   
+} elseif {$::env(BOARD) eq "vc707"} {
+    set_property top sy_soc_vc707 [current_fileset]   
+} else {
+    exit 1
+}
 
 #########
 # vc707 #
@@ -39,6 +50,11 @@ if {$::env(BOARD) eq "vc707"} {
     read_verilog -sv {../../de/inc/vc707.svh ../../de/inc/registers.svh ../../de/inc/glb_def.svh ../../de/inc/sy_cache.svh  
     ../../de/inc/sy_mmu.svh ../../de/inc/sy_ovall.svh ../../de/inc/sy_ppl.svh}
     set file "vc707.svh"
+    set registers "registers.svh"
+} elseif {$::env(BOARD) eq "genesys2"} {
+    read_verilog -sv {../../de/inc/genesys2.svh ../../de/inc/registers.svh ../../de/inc/glb_def.svh ../../de/inc/sy_cache.svh  
+    ../../de/inc/sy_mmu.svh ../../de/inc/sy_ovall.svh ../../de/inc/sy_ppl.svh}
+    set file "genesys2.svh"
     set registers "registers.svh"
 } else {
     exit 1

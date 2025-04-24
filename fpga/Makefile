@@ -38,6 +38,11 @@ $(ips): %.xci :
 	@cd $(ip-dir)/$(basename $(@F)) && make clean && make
 	@cp $(ip-dir)/$(basename $(@F))/ip/$(@F) $@
 
+clean_ip: $(ips)
+	$(foreach dir, $(basename $(^F)), \
+		echo "Entering $(dir)"; \
+		$(MAKE) -C $(ip-dir)/$(dir) clean;) 
+
 mcs: $(mcs)
 
 prj_gui: $(ips)
@@ -47,7 +52,7 @@ prj_gui: $(ips)
 program:
 	$(VIVADO) $(VIVADOFLAGS) -source xilinx_scripts/program.tcl
 
-clean:
+clean:clean_ip
 	rm -rf $(build-dir)
 
 .PHONY:
