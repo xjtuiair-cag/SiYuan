@@ -14,16 +14,23 @@ if __name__ == "__main__":
 
     core_num = cfg["Core_num"]
     phri_slave_num = 0
+    npu_slave_num = 1
     ctrl_slave_num = 3 # clint/plic/bootrom
+
     uart_loc     = 0
     spi_loc      = 1
     gpio_loc     = 2
-    dma_loc      = 3
-    ethernet_loc = 4
+    ethernet_loc = 3
+
+    npu_dram_loc = 0
+    dma_loc      = 1
+    npu_loc     = 2
+
     uart_en     = 0 
     spi_en      = 0 
     gpio_en     = 0 
     dma_en      = 0 
+    npu_en      = 0
     ethernet_en = 0 
 
     if cfg["Uart"]: 
@@ -39,21 +46,27 @@ if __name__ == "__main__":
         phri_slave_num += 1
         gpio_en = 1
     else: 
-        dma_loc = gpio_loc
+        ethernet_loc = gpio_loc
         gpio_loc = 0
-    if cfg["DMA"]:
-        phri_slave_num += 1
-        dma_en = 1
-    else: 
-        ethernet_loc = dma_loc
-        dma_loc = 0
     if cfg["Ethernet"]:
         phri_slave_num += 1
         ethernet_en = 1
     else: 
         ethernet_loc = 0 
 
-    sys_bus_region = max(phri_slave_num, ctrl_slave_num)
+    if cfg["DMA"]:
+        npu_slave_num += 1
+        dma_en = 1
+    else: 
+        npu_loc = dma_loc
+        dma_loc = 0
+    if cfg["NPU"]:
+        npu_slave_num += 1
+        npu_en = 1
+    else: 
+        npu_loc = 0
+
+    sys_bus_region = max(max(phri_slave_num, ctrl_slave_num),npu_slave_num)
     output = "// Auto Generated, don't modify!!!\npackage sy_soc;\n"
     # add core num
     output += "parameter integer CORE_NUM = {};\n".format(core_num)
@@ -62,15 +75,18 @@ if __name__ == "__main__":
     parameter SPI_EN = {};
     parameter GPIO_EN = {};
     parameter DMA_EN = {};
+    parameter NPU_EN = {};
     parameter ETHERNET_EN = {};
-    '''.format(uart_en, spi_en, gpio_en, dma_en, ethernet_en)
+    '''.format(uart_en, spi_en, gpio_en, dma_en, npu_en, ethernet_en)
     # add Address Range of each peripheral (don't modified)
     output += '''
     parameter integer ADDR_WIDTH = 64;
     parameter UARTBase       = 64'h1000_0000;
     parameter UARTLength     = 64'h1000;
     parameter DRAMBase       = 64'h8000_0000;
-    parameter DRAMLength     = 64'h4000_0000; 
+    parameter DRAMLength     = 64'h2000_0000; 
+    parameter NPU_DRAMBase   = 64'hA000_0000;
+    parameter NPU_DRAMLength = 64'h2000_0000; 
     parameter PLICBase       = 64'h0C00_0000;
     parameter PLICLength     = 64'h3FF_FFFF;
     parameter CLINTBase      = 64'h0200_0000;
@@ -83,12 +99,17 @@ if __name__ == "__main__":
     parameter SPILength      = 64'h800000;
     parameter GPIOBase       = 64'h4000_0000;
     parameter GPIOLength     = 64'h1000;
+    parameter NPUBase        = 64'h2000;
+    parameter NPULength      = 64'h1000;
     parameter EthernetBase   = 64'h3000_0000;
     parameter EthernetLength = 64'h1_0000;
     parameter ReservedBase   = {64{1'b1}};
     parameter ReservedLength = 1;
     parameter logic [ADDR_WIDTH-1:0] DRAM_START  = DRAMBase;
     parameter logic [ADDR_WIDTH-1:0] DRAM_END    = DRAMBase + DRAMLength - 1;
+
+    parameter logic [ADDR_WIDTH-1:0] NPU_DRAM_START  = NPU_DRAMBase;
+    parameter logic [ADDR_WIDTH-1:0] NPU_DRAM_END    = NPU_DRAMBase + NPU_DRAMLength - 1;
 
     parameter logic [ADDR_WIDTH-1:0] PLIC_START  = PLICBase;
     parameter logic [ADDR_WIDTH-1:0] PLIC_END    = PLICBase + PLICLength - 1;
@@ -104,6 +125,9 @@ if __name__ == "__main__":
 
     parameter logic [ADDR_WIDTH-1:0] DMA_START   = DMABase;
     parameter logic [ADDR_WIDTH-1:0] DMA_END     = DMABase + DMALength - 1;
+
+    parameter logic [ADDR_WIDTH-1:0] NPU_START   = NPUBase;
+    parameter logic [ADDR_WIDTH-1:0] NPU_END     = NPUBase + NPULength - 1;
 
     parameter logic [ADDR_WIDTH-1:0] GPIO_START  = GPIOBase;
     parameter logic [ADDR_WIDTH-1:0] GPIO_END    = GPIOBase + GPIOLength - 1;
@@ -122,6 +146,7 @@ if __name__ == "__main__":
     parameter DMEM  = 0;
     parameter CTRL_BUS = 1;
     parameter PHRI_BUS = 2;
+    parameter NPU_BUS = 3;
     // control bus
     parameter ROM   = 0;
     parameter PLIC  = 1;
@@ -132,13 +157,20 @@ if __name__ == "__main__":
     parameter UART  = {};
     parameter SPI   = {};
     parameter GPIO  = {};
-    parameter DMA   = {};
     parameter ETHERNET = {};   
-    '''.format(uart_loc, spi_loc, gpio_loc , dma_loc , ethernet_loc)
+    '''.format(uart_loc, spi_loc, gpio_loc , ethernet_loc)
+
+    output += '''
+    // NPU bus
+    parameter NPU_DRAM  = {};
+    parameter DMA   = {};
+    parameter NPU = {};
+    '''.format(npu_dram_loc,dma_loc,npu_loc)
+
     # System Bus config
     output += '''
     parameter SYS_BUS_REGION     = {};
-    parameter SYS_BUS_SLAVE_NUM  = 3;
+    parameter SYS_BUS_SLAVE_NUM  = 4;
     parameter SYS_BUS_SRC_LSB    = 1;
     parameter SYS_BUS_SRC_MSB    = SYS_BUS_SRC_LSB + $clog2(CORE_NUM+1);
     '''.format(sys_bus_region)
@@ -160,6 +192,13 @@ if __name__ == "__main__":
     parameter PHRI_BUS_SRC_LSB   = SYS_BUS_SRC_MSB;
     parameter PHRI_BUS_SRC_MSB   = PHRI_BUS_SRC_LSB + 1;
     '''.format(phri_slave_num)
+    output += '''
+    parameter NPU_BUS_REGION    = 1;     
+    parameter NPU_BUS_SLAVE_NUM = {};
+    parameter NPU_BUS_SRC_LSB   = SYS_BUS_SRC_MSB;
+    parameter NPU_BUS_SRC_MSB   = NPU_BUS_SRC_LSB + 1;
+    '''.format(npu_slave_num)
+
     # system bus
     phri_region_start = "{"
     phri_region_en    = "{"
@@ -176,9 +215,6 @@ if __name__ == "__main__":
     if cfg["GPIO"]:
         phri_region_start += ",GPIO_START"
         phri_region_en    += ",1'b1"
-    if cfg["DMA"]:
-        phri_region_start += ",DMA_START"
-        phri_region_en    += ",1'b1"
     if cfg["Ethernet"]:
         phri_region_start += ",ETH_START"
         phri_region_en    += ",1'b1"
@@ -186,6 +222,28 @@ if __name__ == "__main__":
     phri_region_start += "},\n"
     phri_region_en    += "},\n"
     phri_region_end = phri_region_start.replace("START","END")
+
+
+    npu_region_start = "{"
+    npu_region_en    = "{"
+    if npu_slave_num < 3: 
+        for i in range(3-npu_slave_num):
+            npu_region_start += "RESERVED_START,"
+            npu_region_en    += "1'b0,"
+    # NPU DMEM
+    npu_region_start += "NPU_DRAM_START"
+    npu_region_en    += "1'b1"
+    if cfg["DMA"]:
+        npu_region_start += ",DMA_START"
+        npu_region_en    += ",1'b1"
+    if cfg["NPU"]:
+        npu_region_start += ",NPU_START"
+        npu_region_en    += ",1'b1"
+
+    npu_region_start += "},\n"
+    npu_region_en    += "},\n"
+    npu_region_end = npu_region_start.replace("START","END")
+
 
     ctrl_region_start = "{"
     ctrl_region_en    = "{"
@@ -207,19 +265,19 @@ if __name__ == "__main__":
 
     output += '''
     parameter logic [SYS_BUS_SLAVE_NUM-1:0][SYS_BUS_REGION-1:0][ADDR_WIDTH-1:0]sys_bus_start_addr = {{
-    {}{}{}
+    {}{}{}{}
     }};
-    '''.format(phri_region_start,ctrl_region_start,ddr_region_start)
+    '''.format(npu_region_start,phri_region_start,ctrl_region_start,ddr_region_start)
     output += '''
     parameter logic [SYS_BUS_SLAVE_NUM-1:0][SYS_BUS_REGION-1:0][ADDR_WIDTH-1:0]sys_bus_end_addr = {{
-    {}{}{}
+    {}{}{}{}
     }};
-    '''.format(phri_region_end,ctrl_region_end,ddr_region_end)
+    '''.format(npu_region_end,phri_region_end,ctrl_region_end,ddr_region_end)
     output += '''
     parameter logic [SYS_BUS_SLAVE_NUM-1:0][SYS_BUS_REGION-1:0]sys_bus_region_en = {{
-    {}{}{}
+    {}{}{}{}
     }};
-    '''.format(phri_region_en,ctrl_region_en,ddr_region_en)
+    '''.format(npu_region_en,phri_region_en,ctrl_region_en,ddr_region_en)
     # control bus
     output += '''
     parameter logic  [CTRL_BUS_SLAVE_NUM-1:0][CTRL_BUS_REGION-1:0][ADDR_WIDTH-1:0]ctrl_bus_start_addr = {
@@ -235,7 +293,7 @@ if __name__ == "__main__":
     # phri bus
     phri_bus_start = "}\n"
     phri_bus_en = "}\n"
-    phri_slave = ["UART","SPI","GPIO","DMA","ETH"]
+    phri_slave = ["UART","SPI","GPIO","ETH"]
     for i in range(phri_slave_num):
         if i==0:
             phri_bus_start = phri_slave[i] + "_START" + phri_bus_start
@@ -258,6 +316,33 @@ if __name__ == "__main__":
     {}
     }};
     '''.format(phri_bus_start,phri_bus_end,phri_bus_en)
+    # NPU bus
+    npu_bus_start = "}\n"
+    npu_bus_en = "}\n"
+    npu_slave = ["NPU_DRAM","DMA","NPU"]
+    for i in range(npu_slave_num):
+        if i==0:
+            npu_bus_start = npu_slave[i] + "_START" + npu_bus_start
+            npu_bus_en    = "1'b1" + npu_bus_en
+        else:
+            npu_bus_start = npu_slave[i] + "_START," + npu_bus_start
+            npu_bus_en    = "1'b1," + npu_bus_en
+    npu_bus_start = "{" + npu_bus_start
+    npu_bus_en    = "{" + npu_bus_en
+    npu_bus_end = npu_bus_start.replace("START","END")
+
+    output += '''
+    parameter logic [NPU_BUS_SLAVE_NUM-1:0][NPU_BUS_REGION-1:0][ADDR_WIDTH-1:0]npu_bus_start_addr = {{
+    {}
+    }};
+    parameter logic [NPU_BUS_SLAVE_NUM-1:0][NPU_BUS_REGION-1:0][ADDR_WIDTH-1:0]npu_bus_end_addr = {{
+    {}
+    }};
+    parameter logic [NPU_BUS_SLAVE_NUM-1:0][NPU_BUS_REGION-1:0]npu_bus_region_en = {{
+    {}
+    }};
+    '''.format(npu_bus_start,npu_bus_end,npu_bus_en)
+
     output += "\nendpackage\n"
 
     with open(args.output, "w") as file:

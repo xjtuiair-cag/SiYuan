@@ -13,5 +13,5 @@ if __name__ == "__main__":
         cfg = yaml.safe_load(file)
     core_num = cfg["Core_num"]
 
-    os.system("cd ../../de/rtl/ip/rv_plic/rtl && python gen_plic_addrmap.py -t {} > plic_regmap.sv".format(core_num*2))
+    os.system("cd ../../de/ip/rv_plic/rtl && python gen_plic_addrmap.py -t {} > plic_regmap.sv".format(core_num*2))
 

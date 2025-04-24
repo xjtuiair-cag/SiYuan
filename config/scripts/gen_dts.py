@@ -55,7 +55,7 @@ if __name__ == "__main__":
     output += '''
     memory@80000000 {
       device_type = "memory";
-      reg = <0x0 0x80000000 0x0 0x40000000>;
+      reg = <0x0 0x80000000 0x0 0x20000000>;
     };
     '''
     # soc 
@@ -165,6 +165,22 @@ if __name__ == "__main__":
           xlnx,is-dual = <0x1>;
           xlnx,tri-default = <0xffffffff>;
           xlnx,tri-default-2 = <0xffffffff>;
+        };\n
+        '''
+    if cfg["DMA"] :
+        output += '''
+        npu_dma: cag-hipu100-dma@0{
+            compatible = "cag-hipu100-dma";
+            reg = <0x0 0x0 0x0 0x1000>;    // NPU DMA 
+            status = "okay";
+        };\n
+        '''
+    if cfg["NPU"] :
+        output += '''
+        npu: cag-hipu100@2000{
+            compatible = "cag-hipu100";
+            reg = <0x0 0x2000 0x0 0x1000>;    // NPU 
+            status = "okay";
         };\n
         '''
     if cfg["Ethernet"] : 
