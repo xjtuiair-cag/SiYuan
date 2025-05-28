@@ -90,3 +90,5 @@ If you want to change default configuration, please make sure you have install `
 1. Support more boards, such as `xilinx vc709 board`, `Genesys 2 Kintex-7 FPGA Development Board`.
 
 2. Make SiYuan a out of order RISC-V core.
+
+3. Add the [NPU](https://github.com/xjtuiair-cag/XJTU-Tripler) to SiYuan as a coprocessor 
