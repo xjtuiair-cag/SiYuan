@@ -121,6 +121,7 @@ module sy_gpio
           .AXI_B_ready_o                (axi_b_ready ),                 
           .AXI_B_bits_i                 (axi_b_bits  )                 
     );
+    `ifdef PLATFORM_XILINX
     // system-bus is 64-bit, convert down to 32 bit
     xlnx_axi_dwidth_converter i_xlnx_axi_dwidth_converter_gpio (
         .s_axi_aclk     ( clk_i              ),
@@ -234,5 +235,6 @@ module sy_gpio
 
     assign s_axi_gpio_rlast = 1'b1;
     assign s_axi_gpio_wlast = 1'b1;
+    `endif 
 
 endmodule

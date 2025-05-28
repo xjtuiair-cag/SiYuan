@@ -161,7 +161,7 @@ module sy_icache
   // address must be aligned to size 
   assign icache_A_bits_o.address = cacheable_d ? ((paddr_d >> ICACHE_BLOCK_WTH) << ICACHE_BLOCK_WTH) : 
                                                  ((paddr_d >> ICACHE_DATA_WTH) << ICACHE_DATA_WTH);  
-  assign icache_A_bits_o.mask = '0;
+  assign icache_A_bits_o.mask = {tl_pkg::MASK_WTH{1'b1}};
   assign icache_A_bits_o.data = '0;
   assign icache_A_bits_o.corrupt = 1'b0;
 

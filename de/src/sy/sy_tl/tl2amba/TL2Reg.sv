@@ -72,7 +72,7 @@ module TL2Reg#(
     assign TL_D_bits_o.size             = tl_pkg::size_t'(0);
     assign TL_D_bits_o.source           = source_q;
     assign TL_D_bits_o.sink             = tl_pkg::sink_t'(0);
-    assign TL_D_bits_o.data             = address_q[2] ? (rdata_i << 32) : rdata_i;
+    assign TL_D_bits_o.data             = addr_o[2] ? (rdata_i << 32) : rdata_i;
     assign TL_D_bits_o.denied           = 1'b0;
     assign TL_D_bits_o.corrupt          = 1'b0;
 

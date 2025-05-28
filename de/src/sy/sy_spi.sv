@@ -133,7 +133,7 @@ module sy_spi
           .AXI_B_bits_i                 (axi_b_bits  )                 
     );
     
-
+    `ifdef PLATFORM_XILINX
     xlnx_axi_dwidth_converter i_xlnx_axi_dwidth_converter_spi (
         .s_axi_aclk     ( clk_i              ),
         .s_axi_aresetn  ( rst_i              ),
@@ -268,5 +268,6 @@ module sy_spi
         .sck_t          (                        ),
         .ip2intc_irpt   ( irq_o                  )
     );
+    `endif 
 
 endmodule

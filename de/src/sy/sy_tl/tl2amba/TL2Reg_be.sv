@@ -1,7 +1,7 @@
 // +FHDR------------------------------------------------------------------------
 // XJTU IAIR Corporation All Rights Reserved
 // -----------------------------------------------------------------------------
-// FILE NAME  : TL2Mem.v
+// FILE NAME  : TL2Reg_be.v
 // DEPARTMENT : CAG of IAIR
 // AUTHOR     : shenghuanliu
 // AUTHOR'S EMAIL :liushenghuan2002@gmail.com
@@ -26,7 +26,7 @@
 // Other :
 // -FHDR------------------------------------------------------------------------
 
-module TL2Mem#(
+module TL2Reg_be#(
     parameter       ADDR_WIDTH = 64,
     parameter       DATA_WIDTH = 64 
 )(
@@ -47,6 +47,7 @@ module TL2Mem#(
     output logic                            en_o,
     output logic                            we_o,
     output logic [ADDR_WIDTH-1:0]           addr_o,
+    output logic [DATA_WIDTH/8-1:0]         be_o,
     output logic [DATA_WIDTH-1:0]           wdata_o,
     input  logic [DATA_WIDTH-1:0]           rdata_i
 );
@@ -54,7 +55,7 @@ module TL2Mem#(
 //======================================================================================================================
 // Parameters
 //======================================================================================================================
-    enum logic [1:0] { IDLE, READ_RESP, WRITE_RESP} state_q, state_d;
+    enum logic [1:0] { IDLE, READ, READ_RESP, WRITE_RESP} state_q, state_d;
 
 //======================================================================================================================
 // wire & reg declaration
@@ -62,8 +63,8 @@ module TL2Mem#(
     tl_pkg::source_t                        source_d, source_q;
     logic                                   is_write_d, is_write_q;
     logic [ADDR_WIDTH-1:0]                  address_d, address_q;
-    logic                                   is_low_32bit;
     logic [7:0]                             mask_d, mask_q;
+    logic [63:0]                            rdata_d, rdata_q;
 //======================================================================================================================
 // Instance
 //======================================================================================================================
@@ -72,14 +73,16 @@ module TL2Mem#(
     assign TL_D_bits_o.size             = tl_pkg::size_t'(0);
     assign TL_D_bits_o.source           = source_q;
     assign TL_D_bits_o.sink             = tl_pkg::sink_t'(0);
-    assign TL_D_bits_o.data             = address_q[2] ? (rdata_i << 32) : rdata_i;
+    assign TL_D_bits_o.data             = rdata_q;
     assign TL_D_bits_o.denied           = 1'b0;
     assign TL_D_bits_o.corrupt          = 1'b0;
 
-    assign is_low_32bit = mask_d[3:0] != '0;
-    
-    assign addr_o       = address_d + (is_low_32bit ? 4'h0 : 4'h4);
-    assign wdata_o      = is_low_32bit ? TL_A_bits_i.data : (TL_A_bits_i.data >> 32);
+    // assign rdata_d      = address_q[2] ? (rdata_i << 32) : rdata_i;
+    assign rdata_d      = rdata_i;
+
+    assign addr_o       = address_d;
+    assign wdata_o      = TL_A_bits_i.data;
+    assign be_o         = mask_d;
 
     always_comb begin
         state_d     = state_q;
@@ -111,9 +114,7 @@ module TL2Mem#(
                 TL_D_valid_o = 1'b1;
                 if (TL_D_ready_i) begin
                     state_d = IDLE;
-                end else begin
-                    we_o        = 1'b0;
-                end
+                end 
             end
             WRITE_RESP: begin
                 TL_D_valid_o = 1'b1;
@@ -135,12 +136,14 @@ module TL2Mem#(
             address_q   <= '0;
             is_write_q  <= 1'b0;
             mask_q      <= '0;
+            rdata_q     <= '0;
         end else begin
             state_q     <= state_d;
             source_q    <= source_d;
             address_q   <= address_d;
             is_write_q  <= is_write_d;
             mask_q      <= mask_d;
+            rdata_q     <= rdata_d;
         end
     end
 

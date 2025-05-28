@@ -1,7 +1,7 @@
 // +FHDR------------------------------------------------------------------------
 // XJTU IAIR Corporation All Rights Reserved
 // -----------------------------------------------------------------------------
-// FILE NAME  : sy_soc_genesys2.v
+// FILE NAME  : sy_soc_fpga.v
 // DEPARTMENT : CAG of IAIR
 // AUTHOR     : shenghuanliu
 // AUTHOR'S EMAIL :liushenghuan2002@gmail.com
@@ -26,16 +26,16 @@
 // Other :
 // -FHDR------------------------------------------------------------------------
 
-module sy_soc_genesys2
+module sy_soc_fpga
     import sy_soc::*;
 (
     input  logic         sys_clk_p   ,
     input  logic         sys_clk_n   ,
-    input  logic         cpu_resetn  ,
-    inout  wire  [31:0]  ddr3_dq     ,
-    inout  wire  [ 3:0]  ddr3_dqs_n  ,
-    inout  wire  [ 3:0]  ddr3_dqs_p  ,
-    output logic [14:0]  ddr3_addr   ,
+    input  logic         cpu_reset   ,
+    inout  wire  [63:0]  ddr3_dq     ,
+    inout  wire  [ 7:0]  ddr3_dqs_n  ,
+    inout  wire  [ 7:0]  ddr3_dqs_p  ,
+    output logic [13:0]  ddr3_addr   ,
     output logic [ 2:0]  ddr3_ba     ,
     output logic         ddr3_ras_n  ,
     output logic         ddr3_cas_n  ,
@@ -45,30 +45,20 @@ module sy_soc_genesys2
     output logic [ 0:0]  ddr3_ck_n   ,
     output logic [ 0:0]  ddr3_cke    ,
     output logic [ 0:0]  ddr3_cs_n   ,
-    output logic [ 3:0]  ddr3_dm     ,
+    output logic [ 7:0]  ddr3_dm     ,
     output logic [ 0:0]  ddr3_odt    ,
-    output wire          eth_rst_n   ,
-    input  wire          eth_rxck    ,
-    input  wire          eth_rxctl   ,
-    input  wire [3:0]    eth_rxd     ,
-    output wire          eth_txck    ,
-    output wire          eth_txctl   ,
-    output wire [3:0]    eth_txd     ,
-    inout  wire          eth_mdio    ,
-    output logic         eth_mdc     ,
+    // led
     output logic [ 7:0]  led         ,
     input  logic [ 7:0]  sw          ,
     output logic         fan_pwm     ,
-
     // SPI
-    output logic        spi_mosi    ,
-    input  logic        spi_miso    ,
-    output logic        spi_ss      ,
-    output logic        spi_clk_o   ,
-    // common part
-    input  logic        rx          ,
-    output logic        tx
-
+    output logic         spi_mosi    ,
+    input  logic         spi_miso    ,
+    output logic         spi_ss      ,
+    output logic         spi_clk_o   ,
+    // Uart
+    input  logic         rx          ,
+    output logic         tx
 );
 
 //======================================================================================================================
@@ -108,10 +98,8 @@ module sy_soc_genesys2
     logic                           rst;
     logic                           rst_i;
     logic                           clk_i;
+    logic                           cpu_resetn;
     logic                           clk_d;
-    logic                           clk_125M;
-    logic                           clk_125M_90;
-    logic                           clk_200M;
 
     logic             [PORT_NUM-1:0]  ddr_axi_aw_valid;
     logic             [PORT_NUM-1:0]  ddr_axi_aw_ready;         
@@ -128,14 +116,11 @@ module sy_soc_genesys2
     logic             [PORT_NUM-1:0]  ddr_axi_b_valid;
     logic             [PORT_NUM-1:0]  ddr_axi_b_ready;
     axi_pkg::b_chan_t [PORT_NUM-1:0]  ddr_axi_b_bits;
-
 //======================================================================================================================
 // Clock Generator
 //======================================================================================================================
     xlnx_clk_gen i_xlnx_clk_gen (
       .clk_out1 ( clk           ), // 50 MHz
-      .clk_out2 ( clk_125M     ), // 125 MHz
-      .clk_out3 ( clk_125M_90   ), // 125 MHz
       .reset    ( cpu_reset     ),
       .locked   ( pll_locked    ),
       .clk_in1  ( ddr_clock_out )
@@ -144,11 +129,9 @@ module sy_soc_genesys2
 //======================================================================================================================
 // reset generate
 //======================================================================================================================
-    logic  cpu_reset;
-    assign cpu_reset  = ~cpu_resetn;
-
     assign rst_n = ~ddr_sync_reset;
     assign rst = ddr_sync_reset;
+    assign cpu_resetn  = ~cpu_reset;
     rstgen i_rstgen_main (
         .clk_i        ( clk                      ),
         .rst_ni       ( pll_locked               ),
@@ -286,7 +269,7 @@ module sy_soc_genesys2
 //======================================================================================================================
     sy_main_mem #(
         .HART_NUM       (CORE_NUM),
-        .HART_ID_WTH    (HART_ID_WTH + 1),
+        .HART_ID_WTH    (HART_ID_WTH),
         .HART_ID_LSB    (1)
     ) main_mem(
         .clk_i            (clk_i),
@@ -505,44 +488,23 @@ module sy_soc_genesys2
             .npu_mem             (npu_bus_slave[NPU_DRAM]),
             .npu_reg             (npu_bus_slave[NPU])
         );
-    end 
-//======================================================================================================================
-// Ethernet 
-//======================================================================================================================
-    assign clk_200M = ddr_clock_out;
-    if (ETHERNET_EN) begin
-        sy_ethernet eth_inst(
-           .clk_i               (clk_i),               
-           .clk_200M_i          (clk_200M),             
-           .rst_ni              (rst_i),                    
-
-           .eth_clk_i           (clk_125M_90),                   
-           .eth_rxck            (eth_rxck),                   
-           .eth_rxctl           (eth_rxctl),                   
-           .eth_rxd             (eth_rxd),                   
-           .eth_txck            (eth_txck),                   
-           .eth_txctl           (eth_txctl),                   
-           .eth_txd             (eth_txd),                   
-           .eth_rst_n           (eth_rst_n),                   
-           .phy_tx_clk_i        (clk_125M),                    
-
-           .eth_mdio            (eth_mdio),           
-           .eth_mdc             (eth_mdc),              
-
-           .eth_irq_o           (irq_sources[2]),            
-
-           .master              (phri_bus_slave[ETHERNET])
-        );       
     end else begin
-        assign eth_rst_n = 1'b0;
-        assign eth_txck = 1'b0;
-        assign eth_txctl = 1'b0;
-        assign eth_txd = '0;
-        assign eth_mdc = 1'b0;
+        assign ddr_axi_aw_valid[1]  = '0;      
+        assign ddr_axi_aw_bits [1]  = '0;
+        assign ddr_axi_ar_valid[1]  = '0;
+        assign ddr_axi_ar_bits [1]  = '0;
+        assign ddr_axi_w_valid [1]  = '0;
+        assign ddr_axi_w_bits  [1]  = '0;
+        assign ddr_axi_r_ready [1]  = 1'b1;
+        assign ddr_axi_b_ready [1]  = 1'b1;
     end
+//======================================================================================================================
+// Ethernet (TODO)
+//======================================================================================================================
+
 //======================================================================================================================
 // Signals for simulation or probes
 //======================================================================================================================
 // synopsys translate_off
 // synopsys translate_on
-endmodule : sy_soc_genesys2
+endmodule : sy_soc_fpga

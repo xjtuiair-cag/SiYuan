@@ -52,7 +52,7 @@ module sy_bootrom
 // Instance
 //======================================================================================================================
     assign master.b_valid = 1'b0;
-    TL2Reg #(
+    TL2Mem #(
         .ADDR_WIDTH ( ADDR_WIDTH ),
         .DATA_WIDTH ( DATA_WIDTH )
     ) tl2reg_inst(

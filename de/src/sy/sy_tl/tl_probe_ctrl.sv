@@ -84,12 +84,7 @@ module tl_probe_ctrl #(
         TRANS_B = 2,
         TRANS_T = 3
     } id_trans_e;
-    // `ifdef SINGLE_CORE 
-    //     localparam LEN = 2;
-    // `else
-    //     localparam LEN = HART_NUM;
-    // `endif 
-    localparam LEN = HART_NUM;
+    localparam LEN = (HART_NUM==1) ? 2 : 2 ** $clog2(HART_NUM);
 
 //======================================================================================================================
 // Wire & Reg declaration
@@ -103,7 +98,8 @@ module tl_probe_ctrl #(
     tl_pkg::TL_Permissions_Cap                      acquire_perm;             
     logic [HART_ID_WTH-1:0]                         probe_cnt_d, probe_cnt_q;
     logic                                           probe_done;
-    logic                                           set_cnt;
+    logic                                           core_set;
+    logic                                           dma_set;
     logic                                           probeAck_done;    
     logic                                           probeAckData_done;    
     logic [2:0]                                     A_opcode_d, A_opcode_q;        
@@ -343,8 +339,10 @@ module tl_probe_ctrl #(
     assign probe_busy = |probe_todo_q;
     always_comb begin
         cnt3_d = cnt3_q;
-        if (set_cnt) begin
+        if (core_set) begin
             cnt3_d = HART_NUM - 1;
+        end else if (dma_set) begin
+            cnt3_d = HART_NUM;   
         end else if (probeAck_done || probeAckData_done) begin
             cnt3_d = cnt3_q - 1; 
         end 
@@ -428,7 +426,8 @@ module tl_probe_ctrl #(
         inp_A_ready_o   = 1'b0;
         req_hart_d      = req_hart_q;
         probe_todo_d    = probe_todo_q;
-        set_cnt         = 1'b0;
+        core_set = 1'b0;
+        dma_set = 1'b0;
         tracker_valid   = 1'b0;
         inp_B_valid_o   = 1'b0;
 
@@ -437,10 +436,14 @@ module tl_probe_ctrl #(
                 inp_A_ready_o = 1'b1;
                 if (inp_A_valid_i) begin
                     req_hart_d = {HART_NUM{1'b1}};   
-                    req_hart_d[req_hart_idx] = 1'b0; // don't probe hart which request
+                    if (req_hart_idx < HART_NUM) begin  // dma request if req_hart_idx >= HART_NUM
+                        req_hart_d[req_hart_idx] = 1'b0; // don't probe hart which request
+                        core_set = 1'b1;
+                    end else begin
+                        dma_set = 1'b1;
+                    end
                     probe_todo_d = req_hart_d;
                     state_d = PROBE;
-                    set_cnt = 1'b1;
                 end
             end
             PROBE: begin
@@ -515,5 +518,18 @@ module tl_probe_ctrl #(
             who_use_D_q         <= who_use_D_d; 
         end
     end
+
+
+(* mark_debug = "true" *) logic         prb_cc_a_valid;
+(* mark_debug = "true" *) logic         prb_cc_a_ready;
+(* mark_debug = "true" *) logic[2:0]    prb_cc_a_source;
+(* mark_debug = "true" *) logic[31:0]   prb_cc_a_addr;
+(* mark_debug = "true" *) state_e   prb_cc_state;
+
+assign prb_cc_a_valid = inp_A_valid_i;
+assign prb_cc_a_ready = inp_A_ready_o;
+assign prb_cc_a_source = inp_A_bits_i.source[2:0];
+assign prb_cc_a_addr = inp_A_bits_i.address[31:0];
+assign prb_cc_state = state_q;
 
 endmodule
