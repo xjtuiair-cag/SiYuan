@@ -7,3 +7,6 @@
 [submodule "de/ip/apb_uart"]
 	path = de/ip/apb_uart
 	url = https://github.com/pulp-platform/apb_uart.git
+[submodule "de/ip/ethernet"]
+	path = de/ip/ethernet
+	url = https://github.com/lowRISC/ariane-ethernet.git

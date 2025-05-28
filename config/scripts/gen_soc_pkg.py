@@ -226,8 +226,8 @@ if __name__ == "__main__":
 
     npu_region_start = "{"
     npu_region_en    = "{"
-    if npu_slave_num < 3: 
-        for i in range(3-npu_slave_num):
+    if npu_slave_num < sys_bus_region: 
+        for i in range(sys_bus_region-npu_slave_num):
             npu_region_start += "RESERVED_START,"
             npu_region_en    += "1'b0,"
     # NPU DMEM
