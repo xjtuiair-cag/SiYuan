@@ -1,7 +1,7 @@
-Core_num: 2
+Core_num: 1
 Uart: True # Uart must be true
 SPI: True # SPI must be true
 GPIO: True
 DMA: True
-NPU: False
+NPU: True 
 Ethernet: False
