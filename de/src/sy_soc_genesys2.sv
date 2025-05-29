@@ -26,7 +26,7 @@
 // Other :
 // -FHDR------------------------------------------------------------------------
 
-module sy_soc_genesys2
+module sy_soc_fpga
     import sy_soc::*;
 (
     input  logic         sys_clk_p   ,
@@ -286,7 +286,7 @@ module sy_soc_genesys2
 //======================================================================================================================
     sy_main_mem #(
         .HART_NUM       (CORE_NUM),
-        .HART_ID_WTH    (HART_ID_WTH + 1),
+        .HART_ID_WTH    (HART_ID_WTH),
         .HART_ID_LSB    (1)
     ) main_mem(
         .clk_i            (clk_i),
@@ -545,4 +545,4 @@ module sy_soc_genesys2
 //======================================================================================================================
 // synopsys translate_off
 // synopsys translate_on
-endmodule : sy_soc_genesys2
+endmodule : sy_soc_fpga
