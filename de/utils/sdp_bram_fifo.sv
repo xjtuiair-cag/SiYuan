@@ -35,6 +35,7 @@ module sdp_bram_fifo #(
     input  logic                                rst_i,           
     // status flags
     output logic                                full_o,           
+    output logic                                afull_o, // almost full
     output logic                                empty_o,          
 
     input  logic [DATA_WIDTH-1:0]               data_i,           
@@ -80,11 +81,12 @@ module sdp_bram_fifo #(
 //======================================================================================================================
     // full/empty logic
     assign full_o       = (cnt_q == FIFO_DEPTH[ADDR_DEPTH:0]);
+    assign afull_o      = (cnt_q >= (FIFO_DEPTH[ADDR_DEPTH:0] - 16));
     assign empty_o      = (cnt_q == 0);
 
     assign data_ram_wdata  = data_i;
     assign data_ram_waddr  = write_pointer_q;
-    assign data_ram_raddr  = read_pointer_d;
+    assign data_ram_raddr  = read_pointer_q;
     assign data_o          = data_ram_rdata;
 
     // read and write queue logic
@@ -95,7 +97,7 @@ module sdp_bram_fifo #(
         cnt_d           = cnt_q;
 
         data_ram_wen    = 1'b0;
-        data_ram_ren    = 1'b1; // always read data
+        data_ram_ren    = 1'b0; // always read data
 
         // push a new element to the queue
         if (push_i && ~full_o) begin
@@ -113,7 +115,7 @@ module sdp_bram_fifo #(
 
         if (pop_i && ~empty_o) begin
 
-            // data_ram_ren = 1'b1;
+            data_ram_ren = 1'b1;
             // but increment the read pointer...
             if (read_pointer_q == FIFO_DEPTH[ADDR_DEPTH-1:0] - 1) begin
                 read_pointer_d = '0;
@@ -141,5 +143,10 @@ module sdp_bram_fifo #(
             cnt_q           <= cnt_d;
         end
     end
+(* mark_debug = "true" *) logic[9:0]    prb_fifo_waddr;
+(* mark_debug = "true" *) logic[9:0]    prb_fifo_raddr;
+
+assign prb_fifo_waddr      = data_ram_waddr;           
+assign prb_fifo_raddr      = data_ram_raddr;           
 
 endmodule 
