@@ -5,8 +5,8 @@ VIVADOFLAGS ?= -nojournal -mode batch -source ../xilinx_scripts/prologue.tcl
 PRJ_NAME = SiYuan
 
 build-dir := build
-bit := $(build-dir)/SiYuan_xilinx.bit
-mcs := $(build-dir)/SiYuan_xilinx.mcs
+bit := sy_soc_fpga.bit
+mcs := sy_soc_fpga.mcs
 ip-dir := xilinx_ip
 ips := xlnx_axi_clock_converter.xci  	\
        xlnx_axi_dwidth_converter.xci 	\
@@ -21,12 +21,11 @@ ips := xlnx_axi_clock_converter.xci  	\
 ips := $(addprefix $(build-dir)/, $(ips))
 ips-target := $(join $(addsuffix /ip/, $(addprefix $(ip-dir)/, $(basename $(ips)))), $(ips))
 
-all: $(bit)
+all: $(mcs)
 
 # Generate mcs from bitstream
-#$(mcs): $(bit)
-#	cd $(build-dir)
-#	$(VIVADO) $(VIVADOFLAGS) -source ../xilinx_scripts/write_cfgmem.tcl -tclargs $@ $^
+$(mcs): $(bit)
+	cd $(build-dir) && $(VIVADO) $(VIVADOFLAGS) -source ../xilinx_scripts/write_cfgmem.tcl -tclargs $@ $^
 
 $(bit): $(ips)
 	cd $(build-dir) && $(VIVADO) $(VIVADOFLAGS) -source ../xilinx_scripts/run.tcl
