@@ -431,6 +431,46 @@ typedef struct packed {
 } bp_bus_t;
 
 //----------------------------------------------------------------------------------------------------------------------
+// BTB/BHT/RAS
+//----------------------------------------------------------------------------------------------------------------------
+typedef struct packed {
+    logic                       vld;
+    logic[AWTH-1:0]             pc;     
+    logic[AWTH-1:0]             target_address;     
+} btb_update_t;
+
+typedef struct packed {
+    logic                       vld;
+    logic[AWTH-1:0]             target_address;     
+} btb_pred_t;
+
+typedef struct packed {
+    logic                       vld;
+    logic[AWTH-1:0]             pc;     
+    logic                       taken;  
+} bht_update_t;
+
+typedef struct packed {
+    logic                       vld;
+    logic                       taken;
+} bht_pred_t;
+
+typedef enum logic[2:0] {  
+    NORMAL       = 0,
+    CALL_JALR    = 1,
+    CALL_JAL     = 2,
+    RET          = 3,
+    BRANCH       = 4,
+    JUMP         = 5,
+    JALR         = 6
+} qdec_type_e;
+
+typedef struct packed {
+    logic                   vld;
+    logic[AWTH-1:0]         ra;    
+} ras_t;
+
+//----------------------------------------------------------------------------------------------------------------------
 // Priority & IE
 //----------------------------------------------------------------------------------------------------------------------
 

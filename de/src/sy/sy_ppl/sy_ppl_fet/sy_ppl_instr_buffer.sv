@@ -42,8 +42,10 @@ module sy_ppl_instr_buffer
     // [fetch instr interface]
     input  logic                                        flush_i,
     input  logic [INSTR_PER_FETCH-1:0]                  fet_valid_i,
-    input  logic [INSTR_PER_FETCH-1:0][63:0]            fet_addr_i,
+    input  logic [INSTR_PER_FETCH-1:0][63:0]            fet_pc_i,
+    input  logic [INSTR_PER_FETCH-1:0][63:0]            fet_npc_i,
     input  logic [INSTR_PER_FETCH-1:0][31:0]            fet_instr_i,
+    // input  logic [1:0]                                  fet_instr_is_c_i,  
     // There is no need to store entire exception information in the buffer
     // because exception occur in fetch stage is only one: Instruction Page Fault
     input  logic                                        fet_ex_i, 
@@ -63,8 +65,11 @@ module sy_ppl_instr_buffer
 // Parameters
 //======================================================================================================================
   typedef struct packed {
+    logic [63:0]     pc;
+    logic [63:0]     npc;
     logic [31:0]     instr; // instruction word
     logic            ex;    // exception happened
+    // logic            is_c;  
   } instr_data_t;
 //======================================================================================================================
 // Wire & Reg declaration
@@ -72,6 +77,9 @@ module sy_ppl_instr_buffer
     logic [INSTR_PER_FETCH-1:0]                 instr_queue_full;
     logic [INSTR_PER_FETCH-1:0]                 instr_queue_empty;
     logic [INSTR_PER_FETCH*2-1:0][31:0]         instr_data_double;
+    logic [INSTR_PER_FETCH*2-1:0][63:0]         instr_pc_double;
+    logic [INSTR_PER_FETCH*2-1:0][63:0]         instr_npc_double;
+    logic [INSTR_PER_FETCH*2-1:0]               instr_is_c_double;
     instr_data_t[INSTR_PER_FETCH-1:0]           instr_data_in;
     logic [INSTR_PER_FETCH-1:0]                 push_instr;
     instr_data_t[INSTR_PER_FETCH-1:0]           instr_data_out;
@@ -103,11 +111,20 @@ module sy_ppl_instr_buffer
   for (genvar i=0; i< INSTR_PER_FETCH; i++) begin
     assign instr_data_double[i] = fet_instr_i[i];
     assign instr_data_double[i+INSTR_PER_FETCH] = fet_instr_i[i];
+    assign instr_pc_double[i]   = fet_pc_i[i];
+    assign instr_pc_double[i+INSTR_PER_FETCH] = fet_pc_i[i];
+    assign instr_npc_double[i]  = fet_npc_i[i];
+    assign instr_npc_double[i+INSTR_PER_FETCH] = fet_npc_i[i];
+    // assign instr_is_c_double[i]  = fet_instr_is_c_i[i];
+    // assign instr_is_c_double[i+INSTR_PER_FETCH] = fet_instr_is_c_i[i];
   end
 
   for (genvar i=0; i< INSTR_PER_FETCH; i++) begin
     assign instr_data_in[i].instr = instr_data_double[i+fifo_in_idx_q]; 
-    assign instr_data_in[i].ex = fet_ex_i;
+    assign instr_data_in[i].ex    = fet_ex_i;
+    assign instr_data_in[i].pc    = instr_pc_double[i+fifo_in_idx_q];
+    assign instr_data_in[i].npc   = instr_npc_double[i+fifo_in_idx_q];
+    // assign instr_data_in[i].is_c  = instr_is_c_double[i+fifo_in_idx_q];
   end
 
   // when idx is 1, exchange instr push signal
@@ -146,11 +163,14 @@ module sy_ppl_instr_buffer
   always_comb begin : gen_ouput_data
     fifo_out_idx_d = fifo_out_idx_q;
     instr_before_reply = instr_data_out[fifo_out_idx_q].instr; 
-    dec_pc_o = instr_pc_q; 
-    dec_npc_o = instr_pc_q + (instr_before_reply[1:0] != 2'b11 ? 'd2 : 'd4); 
-    dec_ex_o.valid = instr_data_out[fifo_out_idx_q].ex || (illegal_instr && is_compressed);
-    dec_ex_o.cause = instr_data_out[fifo_out_idx_q].ex ? INSTR_PAGE_FAULT : ILLEGAL_INSTR;
-    dec_ex_o.tval = instr_data_out[fifo_out_idx_q].ex ? instr_pc_q : {16'b0, instr_before_reply[15:0]};
+    dec_pc_o  = instr_data_out[fifo_out_idx_q].pc; 
+    dec_npc_o = instr_data_out[fifo_out_idx_q].npc; 
+    // dec_instr_o = instr_data_out[fifo_out_idx_q].instr;
+    // dec_is_compressed_o = instr_data_out[fifo_out_idx_q].is_c;
+    dec_ex_o.valid = instr_data_out[fifo_out_idx_q].ex;
+    dec_ex_o.cause = instr_data_out[fifo_out_idx_q].ex ? INSTR_PAGE_FAULT : ILLEGAL_INSTR; 
+    // dec_ex_o.tval = instr_data_out[fifo_out_idx_q].ex ? instr_data_out[fifo_out_idx_q].pc : dec_instr_o;
+    dec_ex_o.tval = instr_data_out[fifo_out_idx_q].ex ? instr_data_out[fifo_out_idx_q].pc : {16'b0, instr_before_reply[15:0]};
     pop_instr = '0;
     if(dec_valid_o && dec_ready_i) begin
       fifo_out_idx_d = ~fifo_out_idx_q;
@@ -167,20 +187,20 @@ module sy_ppl_instr_buffer
   );
   assign dec_instr_o = is_compressed ? instr_after_reply : instr_before_reply;
   assign dec_is_compressed_o = is_compressed;
-  // generate instr pc
-  always_comb begin : gen_pc
-    instr_pc_d = instr_pc_q; 
-    reset_pc_d = flush_i ? 1'b1 : reset_pc_q;
 
-    if(dec_valid_o && dec_ready_i) begin
-      instr_pc_d = instr_pc_q + (is_compressed ? 'd2 : 'd4);
-    end
-    if(reset_pc_q && fet_valid_i[0]) begin
-      reset_pc_d = 1'b0;
-      instr_pc_d = fet_addr_i[0];
-    end
-  end
+  // // generate instr pc
+  // always_comb begin : gen_pc
+  //   instr_pc_d = instr_pc_q; 
+  //   reset_pc_d = flush_i ? 1'b1 : reset_pc_q;
 
+  //   if(dec_valid_o && dec_ready_i) begin
+  //     instr_pc_d = instr_pc_q + (is_compressed ? 'd2 : 'd4);
+  //   end
+  //   if(reset_pc_q && fet_valid_i[0]) begin
+  //     reset_pc_d = 1'b0;
+  //     instr_pc_d = fet_addr_i[0];
+  //   end
+  // end
 
 //======================================================================================================================
 // Registers

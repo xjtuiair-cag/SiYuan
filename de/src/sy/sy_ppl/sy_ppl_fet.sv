@@ -59,6 +59,11 @@ module sy_ppl_fet
     output  logic                           fet_ctrl__if0_act_o,
     output  logic                           fet_ctrl__id0_act_o,
     // =====================================
+    // [From alu]
+    input   logic                           flush_bp_i,
+    input   bht_update_t                    bht_update_i,
+    input   btb_update_t                    btb_update_i,
+    // =====================================
     // [to IMEM]
     output  fetch_req_t                     fet_icache__dreq_o,
     input   fetch_rsp_t                     icache_fet__drsp_i,
@@ -132,6 +137,13 @@ module sy_ppl_fet
     logic                           flush_buffer;
     logic                           shamt;
     logic [IWTH-1:0]                fet_data;   
+    logic                           bp_valid;
+    logic[AWTH-1:0]                 bp_addr;
+    logic[1:0]                      fet_valid;
+    logic[1:0][AWTH-1:0]            fet_pc;
+    logic[1:0][AWTH-1:0]            fet_npc;
+    logic[1:0]                      fet_instr_is_c;
+    logic[1:0][IWTH-1:0]            fet_instr;
 //======================================================================================================================
 // Instance
 //======================================================================================================================
@@ -181,6 +193,8 @@ always_comb begin
     end else if(alu_x__mispred_en_i) begin
         ppl_imem_raddr = alu_x__mispred_npc_i;
     // end else if(!ppl_imem__rvld_o || !if0_act) begin
+    end else if (bp_valid) begin
+        ppl_imem_raddr = bp_addr;   
     end else if(!if0_act) begin
         ppl_imem_raddr = if0_pc;
     end else if(bp_btb_update_en) begin
@@ -232,10 +246,10 @@ assign flush_buffer = ctrl_x__id0_kill_i || alu_x__mispred_en_i;
 assign shamt = if0_pc[1];
 assign fet_data = icache_fet__drsp_i.data >> {shamt,4'b0};
 
-sy_ppl_instr_realign u_instr_align(
+sy_ppl_instr_realign instr_align_inst(
     .clk_i                         (clk_i),  
     .rst_ni                        (rst_i),   
-    .flush_i                       (flush_buffer),    
+    .flush_i                       (flush_buffer || bp_valid),    
     .valid_i                       (fetch_valid),    
     .serving_unaligned_o           (),                 // we have an unaligned instruction in [0]
     .address_i                     (if0_pc),      
@@ -245,15 +259,42 @@ sy_ppl_instr_realign u_instr_align(
     .instr_o                       (instr_data) 
 );
 
-sy_ppl_instr_buffer u_instr_buffer(
+sy_ppl_br_pred br_pred_inst(
+    .clk_i                         (clk_i),                    
+    .rst_i                         (rst_i),                    
+    .flush_i                       (flush_bp_i),
+
+    .instr_vld_i                   (instr_valid),    
+    .instr_i                       (instr_data),
+    .vaddr_i                       (instr_addr),
+
+    .fet_pc_i                      (ppl_imem_raddr),
+
+    .bp_vld_o                      (bp_valid),    
+    .bp_addr_o                     (bp_addr),  
+
+    .fet_valid_o                   (fet_valid),       
+    .fet_pc_o                      (fet_pc),    
+    .fet_npc_o                     (fet_npc),  
+    // .fet_instr_is_c_o              (fet_instr_is_c),
+    // .fet_instr_o                   (fet_instr),
+
+    .bht_update_i                  (bht_update_i),     
+    .btb_update_i                  (btb_update_i)
+);
+
+sy_ppl_instr_buffer instr_buffer_inst(
     .clk_i                          (clk_i),  
     .rst_ni                         (rst_i),   
     .flush_i                        (flush_buffer),    
-    .fet_valid_i                    (instr_valid),        
-    .fet_addr_i                     (instr_addr),       
+    .fet_valid_i                    (fet_valid),        
+    .fet_pc_i                       (fet_pc),       
+    .fet_npc_i                      (fet_npc),       
     .fet_instr_i                    (instr_data),        
-    .fet_ex_i                       (icache_fet__drsp_i.ex.valid),      
-    .ready_o                        (buffer_is_not_full),    
+    // .fet_instr_is_c_i               (fet_instr_is_c),
+    .fet_ex_i                       (icache_fet__drsp_i.ex.valid),       // exception    
+    .ready_o                        (buffer_is_not_full),   // buffer is not full   
+
     .dec_ready_i                    (id0_accpt),        
     .dec_valid_o                    (buffer_instr_valid),        
     .dec_pc_o                       (buffer_instr_pc),     
@@ -262,7 +303,6 @@ sy_ppl_instr_buffer u_instr_buffer(
     .dec_is_compressed_o            (buffer_is_compressed),
     .dec_ex_o                       (buffer_ex)                 
 );
-
 //! -----
 //! [Phase: ID0]
 assign id0_stall = dec_fet__raw_hazard_i || halt_i;

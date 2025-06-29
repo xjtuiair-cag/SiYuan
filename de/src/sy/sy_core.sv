@@ -136,6 +136,8 @@ logic                           alu_dec__mem_accpt;
 logic                           alu_x__mispred_en;
 logic[AWTH-1:0]                 alu_x__mispred_pc;
 logic[AWTH-1:0]                 alu_x__mispred_npc;
+bht_update_t                    bht_update;
+btb_update_t                    btb_update;
 logic[DWTH-1:0]                 alu_ctrl__ex0_npc;
 logic[AWTH-1:0]                 alu_ctrl__ex0_ls_addr;
 logic[DWTH-1:0]                 alu_ctrl__ex0_pc;
@@ -292,6 +294,7 @@ icache_mmu_req_t                    icache_areq;
 mmu_icache_rsp_t                    icache_arsp;
 
 logic                               halt;
+logic                               flush_bp;               
 //======================================================================================================================
 // Instance
 //======================================================================================================================
@@ -301,6 +304,7 @@ sy_ppl_ctrl u_sy_ppl_ctrl (
     // [clock & reset]
     .clk_i                                  (clk_i),                            
     .rst_i                                  (rst_i),                            
+    .flush_bp_o                             (flush_bp),
     // =====================================
     // [ctrl & status]
     .boot_addr_i                            (boot_addr_i),                   
@@ -360,6 +364,7 @@ sy_ppl_fet u_sy_ppl_fet (
     .rst_i                                  (rst_i),                            
 
     .halt_i                                 (halt),
+    .flush_bp_i                             (flush_bp),
     // =====================================
     // [block signals]
     .dec_fet__ex0_accpt_i                   (dec_fet__ex0_accpt),               
@@ -368,6 +373,10 @@ sy_ppl_fet u_sy_ppl_fet (
     .alu_x__mispred_npc_i                   (alu_x__mispred_npc),               
     .ctrl_x__if0_kill_i                     (ctrl_x__if0_kill),                 
     .ctrl_x__id0_kill_i                     (ctrl_x__id0_kill),                 
+    // =====================================
+    // [From alu]
+    .bht_update_i                           (bht_update),
+    .btb_update_i                           (btb_update),
     // =====================================
     // [to ppl_ctrl]
     .ctrl_fet__set_en_i                     (ctrl_fet__set_en),                 
@@ -579,6 +588,10 @@ sy_ppl_alu u_sy_ppl_alu (
     .alu_x__mispred_npc_o                   (alu_x__mispred_npc),               
     .ctrl_x__mem_kill_i                     (ctrl_x__mem_kill),                 
     .ctrl_x__wb_kill_i                      (ctrl_x__wb_kill),
+    // =====================================
+    // [From alu]
+    .bht_update_o                           (bht_update),
+    .btb_update_o                           (btb_update),
     // =====================================
     // [csr regfile interface]
     .alu_csr__valid_o                       (alu_csr__valid ),   

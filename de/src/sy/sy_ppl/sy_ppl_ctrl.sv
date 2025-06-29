@@ -35,6 +35,7 @@ module sy_ppl_ctrl
     input   logic                           clk_i,                      
     // -- <reset>
     input   logic                           rst_i,                      
+    output  logic                           flush_bp_o,
     // =====================================
     // [ctrl & status]
     input   logic[AWTH-1:0]                 boot_addr_i,
@@ -154,6 +155,7 @@ assign ppl_idle = !fet_ctrl__if0_act_i && !fet_ctrl__id0_act_i && !dec_ctrl__ex0
 //======================================================================================================================
 always_comb begin
     // default
+    flush_bp_o = 1'b0;
     // FSM of control module
     next_state = cur_state;
     // The privilege, mode, and current PC of Sy core
@@ -212,6 +214,7 @@ always_comb begin
         FSM_RESET: begin
             if(ppl_idle) begin
                 next_state = FSM_INIT_CUR_PC;
+                flush_bp_o = 1'b1;
             end
         end
         FSM_INIT_CUR_PC: begin
@@ -239,9 +242,11 @@ always_comb begin
                 end else if(ctrl_excp_req) begin
                     next_state = FSM_RUN;
                     ctrl_excp_req = 1'b0;
+                    flush_bp_o = 1'b1;
                 end else if(ctrl_xret_req) begin
                     next_state = FSM_RUN;
                     ctrl_xret_req = 1'b0;
+                    flush_bp_o = 1'b1;
                 end else begin
                     next_state = FSM_RUN;
                 end

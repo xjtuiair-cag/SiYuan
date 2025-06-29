@@ -44,6 +44,10 @@ module sy_ppl_alu
     output  logic                           alu_x__mispred_en_o,
     output  logic[AWTH-1:0]                 alu_x__mispred_pc_o,
     output  logic[AWTH-1:0]                 alu_x__mispred_npc_o,
+    // =====================================
+    // [From alu]
+    output  bht_update_t                    bht_update_o,
+    output  btb_update_t                    btb_update_o,
     //! If CTRL module sends kill command, current instruction should be set as invalid.
     //! This kill instruction can disable all phases's signals except phase[BASE].
     input   logic                           ctrl_x__mem_kill_i,
@@ -356,6 +360,18 @@ always_ff @(posedge clk_i) begin
     alu_x__mispred_npc_o <= `TCQ ex0_true_npc;
     alu_x__mispred_pc_o <= `TCQ dec_alu__pc_i;
 end
+
+logic is_branch,is_jalr;
+assign is_branch = dec_alu__instr_cls_i == INSTR_CLS_JBR && dec_alu__jbr_opcode_i == JBR_OP_BRANCH; 
+assign is_jalr   = dec_alu__instr_cls_i == INSTR_CLS_JBR && dec_alu__jbr_opcode_i == JBR_OP_JALR; 
+
+assign bht_update_o.vld    = dec_alu__ex0_avail_i && is_branch;
+assign bht_update_o.pc     = dec_alu__pc_i;
+assign bht_update_o.taken  = als_out[0];
+
+assign btb_update_o.vld    = dec_alu__ex0_avail_i && (dec_alu__npc_i != ex0_true_npc) && is_jalr;
+assign btb_update_o.pc     = dec_alu__pc_i;
+assign btb_update_o.target_address = ex0_true_npc;
 
 assign ex0_rdst_from_alsc = (dec_alu__rdst_src_sel_i == RDST_SRC_FPU) ? dec_alu__fp_result_i : als_out; 
 
