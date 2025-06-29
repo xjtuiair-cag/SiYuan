@@ -171,7 +171,7 @@ if __name__ == "__main__":
         output += '''
         npu_dma: cag-hipu100-dma@0{
             compatible = "cag-hipu100-dma";
-            reg = <0x0 0x0 0x0 0x1000>;    // NPU DMA 
+            reg = <0x0 0x30000 0x0 0x1000>;    // NPU DMA 
             status = "okay";
         };\n
         '''

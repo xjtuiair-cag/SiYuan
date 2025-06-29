@@ -93,7 +93,7 @@ if __name__ == "__main__":
     parameter CLINTLength    = 64'hC0000;
     parameter ROMBase        = 64'h0001_0000;
     parameter ROMLength      = 64'h10000;
-    parameter DMABase        = 64'h0;
+    parameter DMABase        = 64'h3_0000;
     parameter DMALength      = 64'h1000;
     parameter SPIBase        = 64'h2000_0000;
     parameter SPILength      = 64'h800000;
