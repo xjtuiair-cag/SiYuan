@@ -10,6 +10,7 @@
 #define SPI_TRANSMIT_REG SPI_BASE + 0x68
 #define SPI_RECEIVE_REG SPI_BASE + 0x6C
 #define SPI_SLAVE_SELECT_REG SPI_BASE + 0x70
+// not used 
 #define SPI_TRANSMIT_OCCUPANCY SPI_BASE + 0x74
 #define SPI_RECEIVE_OCCUPANCY SPI_BASE + 0x78
 #define SPI_INTERRUPT_GLOBAL_ENABLE_REG SPI_BASE + 0x1c
@@ -22,4 +23,4 @@ void spi_init();
 uint8_t spi_txrx(uint8_t byte);
 
 // return -1 if something went wrong
-int spi_write_bytes(uint8_t *bytes, uint32_t len, uint8_t *ret);
+int spi_trans_with_dma(uint32_t ddr_addr, uint32_t size);

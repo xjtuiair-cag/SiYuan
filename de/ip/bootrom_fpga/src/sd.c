@@ -139,16 +139,8 @@ uint16_t crc16(uint16_t crc, uint8_t data)
     return crc;
 }
 
-int sd_copy(void *dst, uint32_t src_lba, uint32_t size)
+int sd_copy(uint32_t src_lba, uint32_t ddr_addr, uint32_t size)
 {
-    volatile uint8_t *p = dst;
-    long i = size;
-    int rc = 0;
-
-    uint8_t ff[128];
-    for (int j = 0; j < 128; j++)
-        ff[j] = 0xff;
-
     uint8_t crc = 0;
     crc = crc7(crc, 0x40 | SD_CMD_READ_BLOCK_MULTIPLE);
     crc = crc7(crc, (src_lba >> 24) & 0xff);
@@ -164,45 +156,10 @@ int sd_copy(void *dst, uint32_t src_lba, uint32_t size)
         print_uart("could not read SD block\r\n");
         return -1;
     }
-    do
-    {
-        uint16_t crc, crc_exp;
-        long n;
 
-        crc = 0;
-        n = 512;
-        while (sd_dummy() != SD_DATA_TOKEN)
-            ;
-        do
-        {
-            int bytes_per_transfer = 64;
-            spi_write_bytes(ff, bytes_per_transfer, (uint8_t *)p);
-            for (int i = 0; i < bytes_per_transfer; i++)
-            {
-                crc = crc16(crc, p[i]);
-            }
-            p += bytes_per_transfer;
-            n -= bytes_per_transfer;
-            // uint8_t x = sd_dummy();
-            // *p++ = x;
-            // crc = crc16(crc, x);
-        } while (n > 0);
-
-        crc_exp = ((uint16_t)sd_dummy() << 8);
-        crc_exp |= sd_dummy();
-
-        if (crc != crc_exp)
-        {
-            rc = SD_COPY_ERROR_CMD18_CRC;
-            break;
-        }
-        if ((i % 1000) == 0)
-        {
-            print_uart(".");
-        }
-    } while (--i > 0);
-
+    spi_trans_with_dma(ddr_addr, size);
+    
     sd_cmd(SD_CMD_STOP_TRANSMISSION, 0, 0x01);
     sd_dummy();
-    return rc;
+    return 0;
 }

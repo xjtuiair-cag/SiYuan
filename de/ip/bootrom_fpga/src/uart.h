@@ -16,6 +16,8 @@
 #define UART_DLAB_LSB UART_BASE + 0
 #define UART_DLAB_MSB UART_BASE + 4
 
+void write_serial(char a);
+
 void init_uart();
 
 void print_uart(const char* str);

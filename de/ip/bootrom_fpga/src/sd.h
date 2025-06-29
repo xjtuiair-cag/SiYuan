@@ -17,4 +17,4 @@ int init_sd();
 
 void put_sdcard_spi_mode();
 
-int sd_copy(void *dst, uint32_t src_lba, uint32_t size);
+int sd_copy(uint32_t src_lba, uint32_t ddr_addr, uint32_t size);

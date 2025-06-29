@@ -29,23 +29,6 @@
             compatible = "riscv,cpu-intc";
           };
         };
-           
-        cpu1: cpu@1 {
-          clock-frequency = <50000000>; // 50 MHz
-          device_type = "cpu";
-          reg = <1>;
-          status = "okay";
-          compatible = "cag, sy", "riscv";
-          riscv,isa = "rv64imafdc";
-          mmu-type = "riscv,sv39";
-          tlb-split;
-          // HLIC - hart local interrupt controller
-          CPU1_intc: interrupt-controller {
-            #interrupt-cells = <1>;
-            interrupt-controller;
-            compatible = "riscv,cpu-intc";
-          };
-        };
      };
 
     memory@80000000 {
@@ -61,7 +44,7 @@
     
         clint@2000000 {
           compatible = "riscv,clint0";
-          interrupts-extended = <&CPU0_intc 3 &CPU0_intc 7 &CPU1_intc 3 &CPU1_intc 7 >;
+          interrupts-extended = <&CPU0_intc 3 &CPU0_intc 7 >;
           reg = <0x0 0x2000000 0x0 0xc0000>;
           reg-names = "control";
         };
@@ -71,7 +54,7 @@
           #interrupt-cells = <1>;
           compatible = "riscv,plic0";
           interrupt-controller;
-          interrupts-extended = <&CPU0_intc 11 &CPU0_intc 9 &CPU1_intc 11 &CPU1_intc 9 >;
+          interrupts-extended = <&CPU0_intc 11 &CPU0_intc 9 >;
           reg = <0x0 0xc000000 0x0 0x4000000>;
           riscv,max-priority = <7>;
           riscv,ndev = <3>;
@@ -79,7 +62,7 @@
     
         debug-controller@0 {
           compatible = "riscv,debug-013";
-          interrupts-extended = <&CPU0_intc 65535 &CPU1_intc 65535 >;
+          interrupts-extended = <&CPU0_intc 65535 >;
           reg = <0x0 0x0 0x0 0x1000>;
           reg-names = "control";
         };
@@ -139,7 +122,7 @@
         
         npu_dma: cag-hipu100-dma@0{
             compatible = "cag-hipu100-dma";
-            reg = <0x0 0x0 0x0 0x1000>;    // NPU DMA 
+            reg = <0x0 0x30000 0x0 0x1000>;    // NPU DMA 
             status = "okay";
         };
 

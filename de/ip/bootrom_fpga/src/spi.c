@@ -1,5 +1,5 @@
 #include "spi.h"
-
+#include "dma.h"
 #include "uart.h"
 
 void write_reg(uintptr_t addr, uint32_t value)
@@ -67,13 +67,6 @@ uint8_t spi_txrx(uint8_t byte)
 
     uint32_t result = read_reg(SPI_RECEIVE_REG);
 
-    if ((read_reg(SPI_STATUS_REG) & 0x1) != 0x1)
-    {
-        print_uart("rx fifo not empty?? ");
-        print_uart_addr(read_reg(SPI_STATUS_REG));
-        print_uart("\r\n");
-    }
-
     // disable slave select
     write_reg(SPI_SLAVE_SELECT_REG, 0xffffffff);
 
@@ -83,43 +76,37 @@ uint8_t spi_txrx(uint8_t byte)
     return result;
 }
 
-int spi_write_bytes(uint8_t *bytes, uint32_t len, uint8_t *ret)
-{
-    uint32_t status;
+#define SPIN_SHIFT 15
+#define SPIN_UPDATE(i)	(!((i) & ((1 << SPIN_SHIFT)-1)))
+#define SPIN_INDEX(i)	(((i) >> SPIN_SHIFT) & 0x3)
 
-    if (len > 256) // FIFO maxdepth 256
-        return -1;
+int spi_trans_with_dma(uint32_t ddr_addr,uint32_t size)
+{
+    // uint32_t status;
+    uint32_t i = 0;
 
     // enable slave select
     write_reg(SPI_SLAVE_SELECT_REG, 0xfffffffe);
+    // flush D cache
+    __asm__ volatile("fence.i");
 
-    for (int i = 0; i < len; i++)
-    {
-        write_reg(SPI_TRANSMIT_REG, bytes[i] & 0xff);
-    }
-
-    for (int i = 0; i < 50; i++)
-    {
-        __asm__ volatile(
-            "nop");
-    }
-
-    // enable spi control master flag
-    write_reg(SPI_CONTROL_REG, 0x106);
-
-    do
-    {
-        status = read_reg(SPI_STATUS_REG);
-    } while ((status & 0x1) == 0x1);
-
-    for (int i = 0; i < len;)
-    {
-        status = read_reg(SPI_STATUS_REG);
-        if ((status & 0x1) != 0x1) // recieve fifo not empty
-        {
-            ret[i++] = read_reg(SPI_RECEIVE_REG);
+    // enable dma trans
+    Dma_trans(SPI_RECEIVE_REG,ddr_addr,16,size,SPI_MODE);
+    Dma_start();
+    // check if dma trans is done
+    print_uart("START LOADING [");
+    while(1) {
+        if (is_Dma_done()){
+            break;
         }
+        i++;
+		if (SPIN_UPDATE(i)) {
+            print_uart(">");
+		}
     }
+    print_uart("]\r\n");
+    flush_done();
+
 
     // disable slave select
     write_reg(SPI_SLAVE_SELECT_REG, 0xffffffff);
