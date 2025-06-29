@@ -77,7 +77,9 @@ ip := 	$(filter-out de/ip/fpu/src/fpnew_pkg.sv, $(wildcard de/ip/fpu/src/*.sv)) 
                                 	
 ip := $(addprefix $(root-dir), $(ip))
 
-src :=  $(wildcard de/src/sy/sy_ppl/*.sv)              									\
+src :=  $(wildcard de/src/sy/sy_ppl/sy_ppl_fet/sy_ppl_br_pred/*.sv)              		\
+		$(wildcard de/src/sy/sy_ppl/sy_ppl_fet/*.sv)              						\
+		$(wildcard de/src/sy/sy_ppl/*.sv)              									\
 		$(wildcard de/src/sy/sy_tl/tl_buffer/*.sv)              						\
 		$(wildcard de/src/sy/sy_tl/tl_xbar/*.sv)              							\
 		$(wildcard de/src/sy/sy_tl/tl_connect/*.sv)              						\
@@ -111,16 +113,14 @@ sim_src := 	$(wildcard de/ip/bootrom_sim/*.sv)	\
 
 ifeq ($(SIM_TYPE),benos) 
 	sim_src += dv/tb/axi_mem_benos.sv \
-				dv/tb/tb_swf_benos.sv \
-				de/rtl/src/swf_soc.sv                              									       	
+				dv/tb/tb_sy_benos.sv 
 else ifeq ($(SIM_TYPE),smp)
 	sim_src += dv/tb/axi_mem_smp.sv \
 				dv/tb/tb_swf_smp.sv \
 				de/rtl/src/swf_soc_smp.sv                              									       	
 else ifeq ($(SIM_TYPE),linux)
 	sim_src += dv/tb/axi_mem_linux.sv \
-				dv/tb/tb_swf_linux.sv \
-				de/rtl/src/swf_soc_smp.sv                              									       	
+				dv/tb/tb_sy_linux.sv 
 else ifeq ($(SIM_TYPE),dma)
 	sim_src += dv/tb/axi_mem_dma.sv \
 				dv/tb/tb_sy_dma.sv 
