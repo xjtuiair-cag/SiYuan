@@ -3,7 +3,7 @@ SiYuan is a RISC-V Symmetric Multiprocessor(SMP) based on TileLink.
 
 Each core in SiYuan is classic 5-stage in-order RISC-V core which implements RV64GC. We use `TileLink` to connect all the cores and the memory controller so that cache consistency is guaranteed. SiYuan also has the ability to run linux OS and we successfully boot linux on Xilinx VC707 board.
 
-SiYuan support flexible configuration. You can change the number of cores, add or delete peripheral device by yourself. All the source files are written by System verilog.
+SiYuan support flexible configuration. You can modify the number of cores, add or delete peripheral device on your own. All the source files are written by System verilog.
 
 # Requirement
 To build SiYuan, you need to install the following tools:
@@ -14,7 +14,7 @@ To build SiYuan, you need to install the following tools:
 
 3. `riscv-none-elf-gcc` : follow this to build `riscv-none-elf-gcc`
 
-4. `Xilinx VC707 FPGA board`
+4. `Xilinx VC707 FPGA board`  or `Genesys 2 Kintex-7 FPGA Development Board`
 
 If you don't want to install `python3` or `riscv-none-elf-gcc`, that's ok. You can use default source file to build SiYuan. But if you want to change default configuration, you need to install `python3` and `riscv-none-elf-gcc`.
 
@@ -35,7 +35,7 @@ make gen_src
 ```
 3. Generate bitstream
 
-Generate bitstream need vivado, so please make sure you have installed vivado. We recommend to use vivado 2018.2, but other version is OK. If you have any problems in generating bitstream, please consult us in the `Issue`.
+Generate bitstream need vivado, so please make sure you have installed vivado. We recommend to use vivado 2018.2, but other version is acceptable. If you have any problems in generating bitstream, please put it in the `Issue`.
 
 If you are familiar with vivado GUI, you can run the following command to create SiYuan project. Then you will see the project in vivado GUI, and you need to run sythesis and implementation and generate bitstream by yourself.
 ```sh
@@ -87,8 +87,8 @@ If you want to change default configuration, please make sure you have install `
 
 # Future plan
 
-1. Support more boards, such as `xilinx vc709 board`, `Genesys 2 Kintex-7 FPGA Development Board`.
+1. Support more FPGA boards, such as `xilinx vc709 board`.
 
-2. Make SiYuan a out of order RISC-V core.
+2. Transform SiYuan into a out-of-order RISC-V core.
 
 3. Add the [NPU](https://github.com/xjtuiair-cag/XJTU-Tripler) to SiYuan as a coprocessor 
