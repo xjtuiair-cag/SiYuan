@@ -62,23 +62,30 @@ util := de/utils/rr_arb_tree.sv                \
 		de/utils/fifo_v3.sv                              					
 util := $(addprefix $(root-dir), $(util))
 
-ip := 	$(filter-out de/ip/fpu/src/fpnew_pkg.sv, $(wildcard de/ip/fpu/src/*.sv))   			\
+ip := 	$(filter-out de/ip/fpu/src/fpnew_pkg.sv,$(wildcard de/ip/fpu/src/*.sv))   			\
 		$(filter-out de/ip/fpu/src/fpu_div_sqrt_mvp/hdl/defs_div_sqrt_mvp.sv,    				\
 		$(wildcard de/ip/fpu/src/fpu_div_sqrt_mvp/hdl/*.sv))                					\
 		$(wildcard de/ip/sram/*.sv)                                            					\
-		$(wildcard de/ip/ethernet/*.sv)                                            				\
 		de/ip/rv_plic/rtl/plic_regmap.sv                                            			\
 		de/ip/rv_plic/rtl/rv_plic_gateway.sv                                            		\
 		de/ip/rv_plic/rtl/rv_plic_target.sv                                            			\
 		de/ip/rv_plic/rtl/plic_top.sv                                            			 	\
-		$(filter-out de/ip/apb_uart/src/reg_uart_warp.sv,$(wildcard de/ip/apb_uart/src/*.sv))	\
+		$(filter-out de/ip/apb_uart/src/reg_uart_warp.sv,$(wildcard de/ip/apb_uart/src/*.sv))\
 		de/ip/algebra/div64x64_d20_wrap.sv														\
 		de/ip/algebra/mul64x64_d3_wrap.sv													
                                 	
 ip := $(addprefix $(root-dir), $(ip))
 
-src :=  $(wildcard de/src/sy/sy_ppl/sy_ppl_fet/sy_ppl_br_pred/*.sv)              		\
-		$(wildcard de/src/sy/sy_ppl/sy_ppl_fet/*.sv)              						\
+src :=  $(wildcard de/src/sy/sy_ppl/sy_ppl_fronted/sy_ppl_br_pred/*.sv)              	\
+		$(wildcard de/src/sy/sy_ppl/sy_ppl_fronted/*.sv)              					\
+		$(wildcard de/src/sy/sy_ppl/sy_ppl_dec/sy_ppl_rename/*.sv)              		\
+		$(wildcard de/src/sy/sy_ppl/sy_ppl_exu/sy_ppl_fpu/*.sv)              			\
+		$(wildcard de/src/sy/sy_ppl/sy_ppl_lsu/sy_ppl_lsu_ctrl/*.sv)              		\
+		$(wildcard de/src/sy/sy_ppl/sy_ppl_dec/*.sv)              						\
+		$(wildcard de/src/sy/sy_ppl/sy_ppl_dis/*.sv)              						\
+		$(wildcard de/src/sy/sy_ppl/sy_ppl_exu/*.sv)              						\
+		$(wildcard de/src/sy/sy_ppl/sy_ppl_csr/*.sv)              						\
+		$(wildcard de/src/sy/sy_ppl/sy_ppl_lsu/*.sv)              						\
 		$(wildcard de/src/sy/sy_ppl/*.sv)              									\
 		$(wildcard de/src/sy/sy_tl/tl_buffer/*.sv)              						\
 		$(wildcard de/src/sy/sy_tl/tl_xbar/*.sv)              							\
@@ -88,12 +95,10 @@ src :=  $(wildcard de/src/sy/sy_ppl/sy_ppl_fet/sy_ppl_br_pred/*.sv)             
 		$(wildcard de/src/sy/sy_cache/sy_dcache/*.sv)              						\
 		$(wildcard de/src/sy/sy_cache/*.sv)              								\
 		$(wildcard de/src/sy/sy_clint/*.sv)              								\
-		$(wildcard de/src/sy/sy_npu/*.sv)              									\
 		$(wildcard de/src/sy/sy_plic/*.sv)              								\
 		$(wildcard de/src/sy/sy_mmu/*.sv)              									\
 		$(wildcard de/src/sy/sy_dma/*.sv)              									\
-		$(wildcard de/src/sy/*.sv)              												
-src := $(addprefix $(root-dir), $(src))
+		$(wildcard de/src/sy/*.sv)    
 
 fpga_src := $(wildcard de/ip/bootrom_fpga/*.sv) 	
 ifeq ($(BOARD), genesys2)
