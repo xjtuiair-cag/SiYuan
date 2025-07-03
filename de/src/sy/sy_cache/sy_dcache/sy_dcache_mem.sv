@@ -36,6 +36,7 @@ module sy_dcache_mem
   input  logic                                            rst_i,
 
   input  logic                                            flush_i,              
+  output logic[DCACHE_SET_SIZE-1:0][DCACHE_WAY_NUM-1:0]   cl_valid_o,
   // tag port
   input  logic [TAG_PORT-1:0]                             tag_req_i,
   output logic [TAG_PORT-1:0]                             tag_gnt_o,
@@ -63,6 +64,7 @@ module sy_dcache_mem
   logic [DCACHE_TAG_LSB-DCACHE_DATA_WTH-1:0]              data_ram_waddr;      // used to select data array
   logic [DCACHE_WAY_NUM-1:0][DCACHE_DATA_SIZE*8-1:0]      data_ram_rdata;            
   logic [DCACHE_DATA_SIZE*8-1:0]                          data_ram_wdata;            
+  logic [DCACHE_DATA_SIZE-1:0]                            data_ram_wstrb;  
 
   logic [DCACHE_WAY_NUM-1:0]                              tag_array_ren;      // read all ways                
   logic [DCACHE_WAY_NUM-1:0]                              tag_array_wen;                   
@@ -94,40 +96,50 @@ module sy_dcache_mem
 //======================================================================================================================
 
   // arbiter for tag
-  rr_arb_tree #(
-    .NumIn     (TAG_PORT),
-    .DataWidth (1)
-  ) tag_rr_arb_tree (
-    .clk_i  (clk_i          ),
-    .rst_ni (rst_i          ),
-    .flush_i('0             ),
-    .rr_i   ('0             ),
-    .req_i  (tag_req_i      ),
-    .gnt_o  (tag_gnt_o      ),
-    .data_i ('0             ),
-    .gnt_i  (1'b1           ),
-    .req_o  (tag_req        ),
-    .data_o (               ),
-    .idx_o  (tag_port_sel   )
-  );
+  // rr_arb_tree #(
+  //   .NumIn     (TAG_PORT),
+  //   .DataWidth (1)
+  // ) tag_rr_arb_tree (
+  //   .clk_i  (clk_i          ),
+  //   .rst_ni (rst_i          ),
+  //   .flush_i('0             ),
+  //   .rr_i   ('0             ),
+  //   .req_i  (tag_req_i      ),
+  //   .gnt_o  (tag_gnt_o      ),
+  //   .data_i ('0             ),
+  //   .gnt_i  (1'b1           ),
+  //   .req_o  (tag_req        ),
+  //   .data_o (               ),
+  //   .idx_o  (tag_port_sel   )
+  // );
 
-  // arbiter for tag
-  rr_arb_tree #(
-    .NumIn     (DATA_PORT),
-    .DataWidth (1)
-  ) data_rr_arb_tree (
-    .clk_i  (clk_i          ),
-    .rst_ni (rst_i          ),
-    .flush_i('0             ),
-    .rr_i   ('0             ),
-    .req_i  (data_req_i     ),
-    .gnt_o  (data_gnt_o     ),
-    .data_i ('0             ),
-    .gnt_i  (1'b1           ),
-    .req_o  (data_req       ),
-    .data_o (               ),
-    .idx_o  (data_port_sel  )
-  );
+  // // arbiter for tag
+  // rr_arb_tree #(
+  //   .NumIn     (DATA_PORT),
+  //   .DataWidth (1)
+  // ) data_rr_arb_tree (
+  //   .clk_i  (clk_i          ),
+  //   .rst_ni (rst_i          ),
+  //   .flush_i('0             ),
+  //   .rr_i   ('0             ),
+  //   .req_i  (data_req_i     ),
+  //   .gnt_o  (data_gnt_o     ),
+  //   .data_i ('0             ),
+  //   .gnt_i  (1'b1           ),
+  //   .req_o  (data_req       ),
+  //   .data_o (               ),
+  //   .idx_o  (data_port_sel  )
+  // );
+  // loc 0 has highest priority
+  assign tag_req = |tag_req_i;
+  assign tag_gnt_o[0] = tag_req_i[0];
+  assign tag_gnt_o[1] = !tag_req_i[0] && tag_req_i[1];
+  assign tag_port_sel = tag_req_i[0] ? 0 : 1;
+
+  assign data_req = |data_req_i;
+  assign data_gnt_o[0] = data_req_i[0];
+  assign data_gnt_o[1] = !data_req_i[0] && data_req_i[1];
+  assign data_port_sel = data_req_i[0] ? 0 : 1;
 
   assign data_req_bits = data_req_bits_i[data_port_sel];
   assign tag_req_bits = tag_req_bits_i[tag_port_sel];
@@ -141,9 +153,13 @@ module sy_dcache_mem
 
   assign data_ram_waddr               = data_req_bits.idx[DCACHE_TAG_LSB-1:DCACHE_DATA_WTH];
   assign data_ram_wdata               = data_req_bits.wr_data;
+  assign data_ram_wstrb               = data_req_bits.wstrb;
   assign data_ram_raddr               = data_req_bits.idx[DCACHE_TAG_LSB-1:DCACHE_DATA_WTH];
-  assign data_rsp_bits_o[0].rd_data   = data_ram_rdata[data_rd_way_idx_dly];
-  assign data_rsp_bits_o[1].rd_data   = data_ram_rdata[data_rd_way_idx_dly];
+  // assign data_rsp_bits_o[0].rd_data   = data_ram_rdata[data_rd_way_idx_dly];
+  // assign data_rsp_bits_o[1].rd_data   = data_ram_rdata[data_rd_way_idx_dly];
+  assign data_rsp_bits_o[0].rd_data   = data_ram_rdata;
+  assign data_rsp_bits_o[1].rd_data   = data_ram_rdata;
+
 
   assign tag_array_waddr          = tag_req_bits.idx[DCACHE_TAG_LSB-1:DCACHE_BLOCK_WTH];
   assign tag_array_wdata          = tag_req_bits.wr_tag;
@@ -171,7 +187,7 @@ module sy_dcache_mem
       .we_i                       (data_ram_wen[i]      ),          
       .waddr_i                    (data_ram_waddr       ),             
       .wdata_i                    (data_ram_wdata       ),             
-      .wstrb_i                    (8'hff                ),             
+      .wstrb_i                    (data_ram_wstrb       ),             
       .rd_clk_i                   (clk_i                ),              
       .re_i                       (data_ram_ren[i]      ),          
       .raddr_i                    (data_ram_raddr       ),             
@@ -247,6 +263,14 @@ module sy_dcache_mem
         valid_bit[i] <= cl_valid[i][tag_array_raddr];
       end else begin
         valid_bit[i] <= 1'b0;       
+      end
+    end
+  end
+
+  always_comb begin
+    for (integer i=0;i<DCACHE_SET_SIZE;i++) begin
+      for (integer j=0;j<DCACHE_WAY_NUM;j++) begin
+        cl_valid_o[i][j] = cl_valid[j][i];
       end
     end
   end

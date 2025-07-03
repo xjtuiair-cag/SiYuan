@@ -1,7 +1,25 @@
 //----------------------------------------------------------------------------------------------------------------------
 // Overall parameters
 //----------------------------------------------------------------------------------------------------------------------
+parameter PHY_REG = 64;
+parameter PHY_REG_WTH = $clog2(PHY_REG);
 
+parameter PHY_FP_REG = 64;
+parameter PHY_FP_REG_WTH = $clog2(PHY_FP_REG);
+
+parameter ROB_LEN = 8;
+parameter ROB_WTH = $clog2(ROB_LEN);
+
+parameter EXU_IQ_LEN = 8;
+parameter EXU_IQ_WTH = $clog2(EXU_IQ_LEN);
+
+parameter CSR_IQ_LEN = 4;
+parameter CSR_IQ_WTH = $clog2(CSR_IQ_LEN);
+
+parameter LSU_IQ_LEN = 4;
+parameter LSU_IQ_WTH = $clog2(LSU_IQ_LEN);
+
+parameter LSU_BUF_LEN = 4;
 // Supported functional modules
 // support IM on default
 parameter EN_A_EXT = 0;
@@ -87,6 +105,10 @@ endfunction
 
 function automatic logic [4 : 0] get_rs2(logic [IWTH-1 : 0] instruction_i);
     return { instruction_i[24 : 20] };
+endfunction
+
+function automatic logic [4 : 0] get_rs3(logic [IWTH-1 : 0] instruction_i);
+    return { instruction_i[31 : 27] };
 endfunction
 
 function automatic logic [DWTH-1 : 0] i_imm (logic [IWTH-1 : 0] instruction_i);
@@ -297,6 +319,9 @@ localparam OpcodeC2JalrMvAdd    = 3'b100;
 localparam OpcodeC2Fsdsp        = 3'b101;
 localparam OpcodeC2Swsp         = 3'b110;
 localparam OpcodeC2Sdsp         = 3'b111;
+
+
+
 //----------------------------------------------------------------------------------------------------------------------
 // FU parameters
 //----------------------------------------------------------------------------------------------------------------------
@@ -316,14 +341,15 @@ typedef enum logic[1:0] {
 } size_e;
 
 // ALU
-typedef enum logic[6:0] {
-    INSTR_CLS_ILLEGAL = 7'b0000001,
-    INSTR_CLS_NORMAL = 7'b0000010,
-    INSTR_CLS_JBR = 7'b0000100,
-    INSTR_CLS_MEM = 7'b0001000,
-    INSTR_CLS_SYS = 7'b0010000,
-    INSTR_CLS_MDU = 7'b0100000,
-    INSTR_CLS_FPU = 7'b1000000
+typedef enum logic[2:0] {
+    INSTR_CLS_ILLEGAL   = 0,
+    INSTR_CLS_NORMAL    = 1,
+    INSTR_CLS_JBR       = 2,
+    INSTR_CLS_MEM       = 3,
+    INSTR_CLS_SYS       = 4,
+    INSTR_CLS_MDU       = 5,
+    INSTR_CLS_CSR       = 6,
+    INSTR_CLS_FPU       = 7
 } instr_cls_e;
 
 // common FU
@@ -345,23 +371,40 @@ typedef enum logic[3:0] {
 } als_opcode_e;
 
 // Jump & Branch
-typedef enum logic[2:0] {
-    JBR_OP_JAL    = 3'b001,
-    JBR_OP_JALR   = 3'b010,
-    JBR_OP_BRANCH = 3'b100
+typedef enum logic[1:0] {
+    JBR_OP_JAL    = 0,
+    JBR_OP_JALR   = 1,
+    JBR_OP_BRANCH = 2
 } jbr_opcode_e;
 
 // load/store
-typedef enum logic[7:0] {
-    MEM_OP_LOAD   = 8'b00000001,
-    MEM_OP_STORE  = 8'b00000010,
-    MEM_OP_AMO    = 8'b00000100,
-    MEM_OP_LR     = 8'b00001000,
-    MEM_OP_SC     = 8'b00010000,
-    MEM_OP_FENCE  = 8'b00100000,
-    MEM_OP_LD_FP  = 8'b01000000,
-    MEM_OP_ST_FP  = 8'b10000000
+typedef enum logic[2:0] {
+    MEM_OP_LOAD   = 0,
+    MEM_OP_STORE  = 1,
+    MEM_OP_AMO    = 2,
+    MEM_OP_LR     = 3,
+    MEM_OP_SC     = 4,
+    MEM_OP_FENCE  = 5,
+    MEM_OP_LD_FP  = 6,
+    MEM_OP_ST_FP  = 7
 } mem_opcode_e;
+
+typedef enum logic [3:0] {
+    AMO_NONE =4'b0000,
+    AMO_LR   =4'b0001,
+    AMO_SC   =4'b0010,
+    AMO_SWAP =4'b0011,
+    AMO_ADD  =4'b0100,
+    AMO_AND  =4'b0101,
+    AMO_OR   =4'b0110,
+    AMO_XOR  =4'b0111,
+    AMO_MAX  =4'b1000,
+    AMO_MAXU =4'b1001,
+    AMO_MIN  =4'b1010,
+    AMO_MINU =4'b1011,
+    AMO_CAS1 =4'b1100, // unused, not part of riscv spec, but provided in OpenPiton
+    AMO_CAS2 =4'b1101  // unused, not part of riscv spec, but provided in OpenPiton
+} amo_opcode_e;
 
 
 typedef enum logic[0:0] {
@@ -370,25 +413,24 @@ typedef enum logic[0:0] {
 } lrsc_cmd_e;
 
 // System
-typedef enum logic[9:0] {
-    SYS_OP_CSR    = 10'b0000000001,
-    SYS_OP_ECALL  = 10'b0000000010,
-    SYS_OP_EBREAK = 10'b0000000100,
-    SYS_OP_URET   = 10'b0000001000,
-    SYS_OP_SRET   = 10'b0000010000,
-    SYS_OP_HRET   = 10'b0000100000,
-    SYS_OP_MRET   = 10'b0001000000,
-    SYS_OP_DRET   = 10'b0011000000,
-    SYS_OP_FENCEI = 10'b0100000000,
-    SYS_OP_WFI    = 10'b1000000000,
-    SYS_OP_SFENCE_VMA= 10'b1100000000
+typedef enum logic[3:0] {
+    SYS_OP_ECALL        = 0,
+    SYS_OP_EBREAK       = 1,
+    SYS_OP_URET         = 2,
+    SYS_OP_SRET         = 3,
+    SYS_OP_HRET         = 4,
+    SYS_OP_MRET         = 5,
+    SYS_OP_DRET         = 6,
+    SYS_OP_FENCEI       = 7,
+    SYS_OP_WFI          = 8,
+    SYS_OP_SFENCE_VMA   = 9
 } sys_opcode_e;
 
 typedef enum logic[1:0] {
     CSR_RW = 1,
     CSR_RS = 2,
     CSR_RC = 3
-} csr_cmd_e;
+} csr_opcode_e;
 
 // MDU
 typedef enum logic[1:0] {
@@ -398,19 +440,64 @@ typedef enum logic[1:0] {
     MDU_OP_REM = 2'd3
 } mdu_opcode_e;
 
+typedef enum logic[5:0] {  
+    FMADD = 1,
+    FMSUB = 2,
+    FNMADD = 3,
+    FNMSUB = 4,
+    FADD = 5,
+    FSUB = 6,
+    FMUL = 7,
+    FDIV = 8,
+    FSQRT = 9,
+    FSGNJ = 10,
+    FMIN_MAX = 11,
+    FCVT_F2F = 12,
+    FCMP = 13,
+    FCVT_F2I = 14,
+    FCVT_I2F = 15,
+    FMV_F2X = 16,
+    FCLASS = 17,
+    FMV_X2F = 18,
+    VFMIN = 19,
+    VFMAX = 20,
+    VFSGNJ = 21,
+    VFSGNJN = 22,
+    VFSGNJX = 23,
+    VFEQ = 24,
+    VFNE = 25,
+    VFLT = 26,
+    VFGE = 27,
+    VFLE = 28,
+    VFGT = 29,
+    VFCPKAB_S = 30,
+    VFCPKCD_S = 31,
+    VFCPKAB_D = 32,
+    VFCPKCD_D = 33
+} fpu_opcode_e;
+
 // Register source selection
-typedef enum logic[1:0] {
+typedef enum logic[2:0] {
     RS1_SRC_ZERO = 0,
-    RS1_SRC_REG = 1,
-    RS1_SRC_PC = 2
+    RS1_SRC_REG1 = 1,
+    RS1_SRC_REG2 = 2,
+    RS1_SRC_PC   = 3,
+    RS1_SRC_IMM  = 4
 } rs1_src_e;
 
-typedef enum logic[1:0] {
+typedef enum logic[2:0] {
     RS2_SRC_ZERO = 0,
-    RS2_SRC_REG = 1,
-    RS2_SRC_IMM = 2,
-    RS2_SRC_FOUR = 3
+    RS2_SRC_REG1 = 1,
+    RS2_SRC_REG2 = 2,
+    RS2_SRC_IMM  = 3,
+    RS2_SRC_FOUR = 4
 } rs2_src_e;
+
+typedef enum logic[1:0] {
+    RS3_SRC_REG2 = 0,
+    RS3_SRC_REG3 = 1,
+    RS3_SRC_IMM  = 2
+} rs3_src_e;
 
 typedef enum logic[2:0] {
     RDST_SRC_ALU = 0,
@@ -421,14 +508,289 @@ typedef enum logic[2:0] {
     RDST_SRC_FPU = 5
 } rdst_src_e;
 
-// bypass bus
+
+typedef enum logic[1:0] { 
+    TO_NONE = 0,
+    TO_EXU  = 1,
+    TO_LSU  = 2,
+    TO_CSR  = 3
+} issue_type_e;
+
+typedef enum logic [5 : 0] {
+    INST_ADDR_MISALIGNED = 'h0,
+    INST_ACCESS_FAULT = 'h1,
+    ILLEGAL_INST = 'h2,
+    BREAK_POINT = 'h3,
+    LD_ADDR_MISALIGNED = 'h4,
+    LD_ACCESS_FAULT = 'h5,
+    ST_AMO_ADDR_MISALIGNED = 'h6,
+    ST_AMO_ACCESS_FAULT = 'h7,
+    ENV_CALL_FROM_U_MODE = 'h8,
+    ENV_CALL_FROM_S_MODE = 'h9,
+    ENV_CALL_FROM_H_MODE = 'ha,
+    ENV_CALL_FROM_M_MODE = 'hb,
+    INST_PAGE_FAULT = 'hc,
+    LD_PAGE_FAULT = 'hd,
+    ST_AMO_PAGE_FAULT = 'hf,
+    DEBUG_REQUEST = 'h18
+} excp_e;
+
+typedef enum logic [5 : 0] {
+    SOFTWARE_U_MODE = 'h0,
+    SOFTWARE_S_MODE = 'h1,
+    SOFTWARE_H_MODE = 'h2,
+    SOFTWARE_M_MODE = 'h3,
+    TIMER_U_MODE = 'h4,
+    TIMER_S_MODE = 'h5,
+    TIMER_H_MODE = 'h6,
+    TIMER_M_MODE = 'h7,
+    EXT_U_MODE = 'h8,
+    EXT_S_MODE = 'h9,
+    EXT_H_MODE = 'ha,
+    EXT_M_MODE = 'hb,
+    IC_MODE = 'hc,
+    DC_MODE = 'hd,
+    L2C_MODE = 'he,
+    NDMA_MODE = 'hf,
+    VFT_MODE = 'h10,
+    H2C_MODE = 'h14
+} intr_e;
+
+
+typedef union packed {
+    intr_e       intr;
+    excp_e       excp;
+} ecode_t;
+
 typedef struct packed {
-    logic                               en;
-    logic[4:0]                          idx;
-    // Obsolete: the destiny register data is 1 cycle delay than other information.
-    // Now the data is at the same cycle with enable and index signal.
-    logic[DWTH-1:0]                     data;
-} bp_bus_t;
+    intr_e       intr_cause;
+    logic        intr_en;
+} intr_ctrl_t;
+
+typedef struct packed {
+    ecode_t       cause;       
+    logic [63:0]  tval;  
+    logic         valid;
+} excp_t; // exception
+
+typedef enum logic[1:0] {
+    PRIV_LVL_M = 2'b11,
+    PRIV_LVL_S = 2'b01,
+    PRIV_LVL_U = 2'b00
+} priv_lvl_t;
+
+// decoded CSR address
+typedef struct packed {
+    logic [1:0]  rw;
+    priv_lvl_t   priv_lvl;
+    logic  [7:0] address;
+} csr_addr_t;
+
+
+typedef struct packed {
+    als_opcode_e                        als_op;
+    jbr_opcode_e                        jbr_op;
+    mdu_opcode_e                        mdu_op;
+    fpu_opcode_e                        fpu_op;
+    csr_opcode_e                        csr_op;
+    logic [DWTH-1:0]                    imm;
+    rs1_src_e                           rs1_src_sel;   
+    rs2_src_e                           rs2_src_sel;   
+    rs3_src_e                           rs3_src_sel;   
+    logic                               rs1_sign;
+    logic                               rs2_sign;
+    logic                               is_32;                   
+    logic[1:0]                          fmt;
+    logic[2:0]                          rm;
+    logic[11:0]                         csr_addr; 
+    logic                               csr_wr_en;
+    logic                               csr_rd_en;
+} exu_cmd_t;
+
+typedef struct packed {
+    mem_opcode_e                        mem_op;
+    amo_opcode_e                        amo_op;
+    logic [DWTH-1:0]                    imm;
+    logic                               sign_ext; 
+    rs1_src_e                           rs1_src_sel;   
+    rs2_src_e                           rs2_src_sel;   
+    size_e                              size;
+    logic                               is_fence;
+} lsu_cmd_t;
+
+typedef struct packed {
+    csr_opcode_e                        csr_op;
+    logic[11:0]                         csr_addr;
+    logic[4:0]                          csr_imm;
+    logic                               with_imm;
+    logic                               csr_wr_en;
+    logic                               csr_rd_en;
+} csr_cmd_t;
+
+typedef struct packed {
+    sys_opcode_e                        sys_op;
+} sys_cmd_t;
+
+typedef struct packed {
+    issue_type_e                        issue_type;
+    instr_cls_e                         instr_cls;
+    exu_cmd_t                           exu_cmd;
+    csr_cmd_t                           csr_cmd;
+    lsu_cmd_t                           lsu_cmd;
+    sys_cmd_t                           sys_cmd;
+    logic[PHY_REG_WTH-1:0]              phy_rs1_idx;
+    logic[PHY_REG_WTH-1:0]              phy_rs2_idx;
+    logic[PHY_REG_WTH-1:0]              phy_rs3_idx;
+    logic[PHY_REG_WTH-1:0]              phy_rdst_idx;
+    logic[4:0]                          arc_rdst_idx;
+    logic[PHY_REG_WTH-1:0]              phy_old_rdst_idx;
+    logic                               rs1_en;
+    logic                               rs2_en;
+    logic                               rs3_en;
+    logic                               rdst_en;    
+    logic                               rs1_is_fp;
+    logic                               rs2_is_fp;  
+    logic                               rdst_is_fp;
+    excp_t                              excp;
+    logic[AWTH-1:0]                     pc;
+    logic[AWTH-1:0]                     npc;
+    logic                               is_c;           
+    logic                               completed;
+    logic                               is_intr;
+    logic[IWTH-1:0]                     instr;
+} dispatch_t;
+
+typedef struct packed {
+    instr_cls_e                         instr_cls;
+    exu_cmd_t                           exu_cmd;
+    logic[PHY_REG_WTH-1:0]              phy_rs1_idx;
+    logic[PHY_REG_WTH-1:0]              phy_rs2_idx;
+    logic[PHY_REG_WTH-1:0]              phy_rs3_idx;
+    logic[PHY_REG_WTH-1:0]              phy_rdst_idx;
+    logic                               rs1_is_fp;
+    logic                               rs2_is_fp;                      
+    logic                               rs1_state;
+    logic                               rs2_state;
+    logic                               rs3_state;
+    logic                               rdst_en;
+    logic                               rdst_is_fp; 
+    logic[ROB_WTH-1:0]                  rob_idx;
+    logic[AWTH-1:0]                     pc;
+    logic                               is_c;
+} exu_packet_t;
+
+typedef struct packed {
+    lsu_cmd_t                           lsu_cmd;
+    logic[PHY_REG_WTH-1:0]              phy_rs1_idx;
+    logic[PHY_REG_WTH-1:0]              phy_rs2_idx;
+    logic[PHY_REG_WTH-1:0]              phy_rdst_idx;
+    logic                               rs1_state;
+    logic                               rs2_state;
+    logic                               rs2_is_fp;
+    logic                               rdst_en;     
+    logic                               rdst_is_fp;
+    logic[ROB_WTH-1:0]                  rob_idx;
+} lsu_packet_t;
+
+typedef struct packed {
+    csr_cmd_t                           csr_cmd;
+    logic[PHY_REG_WTH-1:0]              phy_rs1_idx;
+    logic[PHY_REG_WTH-1:0]              phy_rdst_idx;
+    logic                               rs1_state;
+    logic                               rdst_en;     
+    logic[ROB_WTH-1:0]                  rob_idx;
+} csr_packet_t;
+
+typedef struct packed {
+    instr_cls_e                         instr_cls;
+    logic[PHY_REG_WTH-1:0]              phy_old_rdst_idx;    
+    logic[PHY_REG_WTH-1:0]              phy_rdst_idx;
+    logic[4:0]                          arc_rdst_idx;
+    logic                               rdst_en;    
+    logic                               rdst_is_fp;    
+    sys_opcode_e                        sys_op;
+    excp_t                              excp;
+    logic[AWTH-1:0]                     cur_pc;  
+    logic[AWTH-1:0]                     pred_npc;  
+    logic[AWTH-1:0]                     true_npc;  
+    logic                               completed;
+    logic                               need_flush;   
+    logic[4:0]                          fpu_status;
+    logic                               need_reitre_write;               
+    logic                               is_intr;
+    logic                               is_c;
+    logic                               is_fp;                   
+    logic                               is_csr;   
+    logic                               is_jalr; 
+    logic                               is_branch;    
+    logic                               br_taken;            
+    logic[IWTH-1:0]                     instr;
+} rob_t;
+
+typedef struct packed {
+    logic                               vld; 
+    logic[ROB_WTH-1:0]                  rob_idx;
+    logic[AWTH-1:0]                     true_npc;
+    logic                               br_taken;
+} alu_commit_t;
+
+typedef struct packed {
+    logic                               vld; 
+    logic[ROB_WTH-1:0]                  rob_idx;
+} mdu_commit_t;
+
+typedef struct packed {
+    logic                               vld; 
+    logic[ROB_WTH-1:0]                  rob_idx;
+    logic                               excp_en;
+    logic                               flush_en;
+} csr_commit_t;
+
+typedef struct packed {
+    logic                               vld;
+    logic[ROB_WTH-1:0]                  rob_idx;
+    logic                               excp_en;
+    excp_e                              excp_code; 
+    logic[DWTH-1:0]                     excp_tval;
+    logic[ROB_WTH-1:0]                  excp_rob_idx;
+    // logic                               flush_en;
+} lsu_commit_t;
+
+typedef struct packed {
+    logic                               vld;
+    logic[ROB_WTH-1:0]                  rob_idx;
+    logic[4:0]                          status;
+    logic                               flush_en;
+} fpu_commit_t;
+
+typedef struct packed {
+     excp_e                     excp_cause; // cause of exception
+     intr_e                     intr_cause; // cause of exception
+     logic  [63:0]              tval;  // additional information of causing exception (e.g.: instruction causing it),
+     logic  [63:0]              pc;  
+     logic                      valid;
+     logic                      is_intr;
+} trap_t;
+
+typedef struct packed {
+    logic                       rd_en;
+    csr_addr_t                  raddr;
+    logic                       csr_query_en;
+    logic                       is_wr;
+    logic                       is_rd;
+} csr_bus_req_t;
+
+typedef struct packed {
+    logic                       wr_en;
+    logic[DWTH-1:0]             wdata;
+    csr_addr_t                  waddr;
+} csr_bus_wr_t;
+
+typedef struct packed {
+    logic[DWTH-1:0]             rdata;
+    logic                       excp_en;
+    logic                       need_flush;
+} csr_bus_rsp_t;
 
 //----------------------------------------------------------------------------------------------------------------------
 // BTB/BHT/RAS
@@ -501,22 +863,6 @@ typedef enum logic[3:0] {
     // ----------------------
     // Exception Cause Codes
     // ----------------------
-    localparam logic [63:0] INSTR_ADDR_MISALIGNED = 0;
-    localparam logic [63:0] INSTR_ACCESS_FAULT    = 1;
-    localparam logic [63:0] ILLEGAL_INSTR         = 2;
-    localparam logic [63:0] BREAKPOINT            = 3;
-    localparam logic [63:0] LD_ADDR_MISALIGNED    = 4;
-    localparam logic [63:0] LD_ACCESS_FAULT       = 5;
-    localparam logic [63:0] ST_ADDR_MISALIGNED    = 6;
-    localparam logic [63:0] ST_ACCESS_FAULT       = 7;
-    localparam logic [63:0] ENV_CALL_UMODE        = 8;  // environment call from user mode
-    localparam logic [63:0] ENV_CALL_SMODE        = 9;  // environment call from supervisor mode
-    localparam logic [63:0] ENV_CALL_MMODE        = 11; // environment call from machine mode
-    localparam logic [63:0] INSTR_PAGE_FAULT      = 12; // Instruction page fault
-    localparam logic [63:0] LOAD_PAGE_FAULT       = 13; // Load page fault
-    localparam logic [63:0] STORE_PAGE_FAULT      = 15; // Store page fault
-    localparam logic [63:0] DEBUG_REQUEST         = 24; // Debug request
-
     localparam int unsigned IRQ_S_SOFT  = 1;
     localparam int unsigned IRQ_M_SOFT  = 3;
     localparam int unsigned IRQ_S_TIMER = 5;
@@ -525,11 +871,6 @@ typedef enum logic[3:0] {
     localparam int unsigned IRQ_M_EXT   = 11;
 
 
-typedef enum logic[1:0] {
-    PRIV_LVL_M = 2'b11,
-    PRIV_LVL_S = 2'b01,
-    PRIV_LVL_U = 2'b00
-} priv_lvl_t;
 
 typedef enum logic [1:0] {
     Off     = 2'b00,
@@ -538,41 +879,7 @@ typedef enum logic [1:0] {
     is_Dirty   = 2'b11
 } xs_t;
 
-typedef enum logic[5:0] {  
-    FMADD = 1,
-    FMSUB = 2,
-    FNMADD = 3,
-    FNMSUB = 4,
-    FADD = 5,
-    FSUB = 6,
-    FMUL = 7,
-    FDIV = 8,
-    FSQRT = 9,
-    FSGNJ = 10,
-    FMIN_MAX = 11,
-    FCVT_F2F = 12,
-    FCMP = 13,
-    FCVT_F2I = 14,
-    FCVT_I2F = 15,
-    FMV_F2X = 16,
-    FCLASS = 17,
-    FMV_X2F = 18,
-    VFMIN = 19,
-    VFMAX = 20,
-    VFSGNJ = 21,
-    VFSGNJN = 22,
-    VFSGNJX = 23,
-    VFEQ = 24,
-    VFNE = 25,
-    VFLT = 26,
-    VFGE = 27,
-    VFLE = 28,
-    VFGT = 29,
-    VFCPKAB_S = 30,
-    VFCPKCD_S = 31,
-    VFCPKAB_D = 32,
-    VFCPKCD_D = 33
-} fpu_opcode_t ;
+
 
 parameter TRANS_ID_BITS = 3;
 // Floating-point extensions configuration
@@ -624,8 +931,8 @@ typedef enum logic [0:0] {
 
 
 typedef struct packed {
-    fpu_fu_t                    fu;     
-    fpu_opcode_t              operator;
+    fpu_fu_t                  fu;     
+    fpu_opcode_e              operator;
     logic [63:0]              operand_a;
     logic [63:0]              operand_b;
     logic [63:0]              imm;
@@ -673,6 +980,54 @@ typedef struct packed {
         logic [43:0] ppn;
     } satp_t;
 
+    typedef struct packed {
+        logic[42 : 0]               rsv0;
+        logic                       H2CIP;      // bit 20
+        logic                       COPIP;      // bit 19
+        logic                       SSWAPIP;    // bit 18
+        logic                       SRDIP;      // bit 17
+        logic                       VFTIP;      // bit 16
+        logic                       NDMAIP;     // bit 15
+        logic                       L2CIP;      // bit 14
+        logic                       DCIP;       // bit 13
+        logic                       ICIP;       // bit 12
+        logic                       MEIP;       // bit 11
+        logic                       HEIP;       // bit 10
+        logic                       SEIP;       // bit 9
+        logic                       UEIP;       // bit 8
+        logic                       MTIP;       // bit 7
+        logic                       HTIP;       // bit 6
+        logic                       STIP;       // bit 5
+        logic                       UTIP;       // bit 4
+        logic                       MSIP;       // bit 3
+        logic                       HSIP;       // bit 2
+        logic                       SSIP;       // bit 1
+        logic                       USIP;       // bit 0
+    } csr_mip_t;
+    typedef struct packed {
+        logic[42 : 0]               rsv0;
+        logic                       H2CIE;      // bit 20
+        logic                       COPIE;      // bit 19
+        logic                       SSWAPIE;    // bit 18
+        logic                       SRDIE;      // bit 17
+        logic                       VFTIE;      // bit 16
+        logic                       NDMAIE;     // bit 15
+        logic                       L2CIE;      // bit 14
+        logic                       DCIE;       // bit 13
+        logic                       ICIE;       // bit 12
+        logic                       MEIE;       // bit 11
+        logic                       HEIE;       // bit 10
+        logic                       SEIE;       // bit 9
+        logic                       UEIE;       // bit 8
+        logic                       MTIE;       // bit 7
+        logic                       HTIE;       // bit 6
+        logic                       STIE;       // bit 5
+        logic                       UTIE;       // bit 4
+        logic                       MSIE;       // bit 3
+        logic                       HSIE;       // bit 2
+        logic                       SSIE;       // bit 1
+        logic                       USIE;       // bit 0
+    } csr_mie_t;
     typedef struct packed {
         logic [31:28]     xdebugver;
         logic [27:16]     zero2;
@@ -809,12 +1164,6 @@ typedef struct packed {
         CSR_HPM_COUNTER_31 = 12'hC1F  // reserved
     } csr_reg_t;
 
-    // decoded CSR address
-    typedef struct packed {
-        logic [1:0]  rw;
-        priv_lvl_t   priv_lvl;
-        logic  [7:0] address;
-    } csr_addr_t;
 
     // Floating-Point control and status register (32-bit!)
     typedef struct packed {
@@ -900,13 +1249,13 @@ typedef struct packed {
     localparam logic [3:0] MODE_SV39 = 4'h8;
     localparam logic [3:0] MODE_OFF = 4'h0;
 
-    typedef struct packed {
-      logic [63:0] mie;
-      logic [63:0] mip;
-      logic [63:0] mideleg;
-      logic        sie;
-      logic        global_enable;
-    } irq_ctrl_t;
+    // typedef struct packed {
+    //   logic [63:0] mie;
+    //   logic [63:0] mip;
+    //   logic [63:0] mideleg;
+    //   logic        sie;
+    //   logic        global_enable;
+    // } irq_ctrl_t;
 
     localparam SupervisorIrq = 1;
     localparam MachineIrq = 0;
@@ -926,3 +1275,8 @@ typedef struct packed {
     localparam logic [63:0] MIP_SEIP = 1 << IRQ_S_EXT;
     localparam logic [63:0] MIP_MEIP = 1 << IRQ_M_EXT;
 
+typedef struct packed {
+    logic                       is_intr;
+    logic[56 : 0]               rsv0;
+    ecode_t                     ecode;
+} csr_mcause_t;

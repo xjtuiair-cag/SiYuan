@@ -18,8 +18,8 @@
 module cva6_ptw 
     import sy_pkg::*;
 #(
-        parameter int ASID_WIDTH = 1
-    )(
+    parameter int ASID_WIDTH = 1
+)(
     input  logic                    clk_i,                  // Clock
     input  logic                    rst_ni,                 // Asynchronous reset active low
     input  logic                    flush_i,                // flush everything, we need to do this because
@@ -33,8 +33,11 @@ module cva6_ptw
 
     input  logic                    lsu_is_store_i,         // this translation was triggered by a store
     // PTW memory interface
-    input  dcache_rsp_t             rsp_port_i,
-    output dcache_req_t             req_port_o,
+    output logic                    mmu_dcache__vld_o,
+    input  logic                    dcache_mmu__rdy_i,      
+    output dcache_req_t             mmu_dcache__data_o,
+    input  logic                    dcache_mmu__rvld_i,  
+    input  logic [DWTH-1:0]         dcache_mmu__rdata_i,
 
 
     // to TLBs, update logic
@@ -99,16 +102,32 @@ module cva6_ptw
     assign ptw_active_o    = (state_q != IDLE);
     assign walking_instr_o = is_instr_ptw_q;
     // directly output the correct physical address
-    assign req_port_o.addr_inx  = (ptw_pptr_q[DCACHE_TAG_LSB-1:0] >> DCACHE_DATA_WTH) << DCACHE_DATA_WTH;
-    assign req_port_o.addr_tag   = ptw_pptr_q[DCACHE_TAG_MSB-1:DCACHE_TAG_LSB];
-    // we are never going to kill this request
-    assign req_port_o.kill      = '0;
-    // we are never going to write with the HPTW
-    assign req_port_o.wdata    = 64'b0;
-    assign req_port_o.be        = 8'hff;
-    assign req_port_o.we        = '0;
-    assign req_port_o.size      = 2'b11;
-    assign req_port_o.amo_op    = AMO_NONE;
+    // assign req_port_o.addr_inx  = (ptw_pptr_q[DCACHE_TAG_LSB-1:0] >> DCACHE_DATA_WTH) << DCACHE_DATA_WTH;
+    // assign req_port_o.addr_tag   = ptw_pptr_q[DCACHE_TAG_MSB-1:DCACHE_TAG_LSB];
+    // // we are never going to kill this request
+    // assign req_port_o.kill      = '0;
+    // // we are never going to write with the HPTW
+    // assign req_port_o.wdata    = 64'b0;
+    // assign req_port_o.be        = 8'hff;
+    // assign req_port_o.we        = '0;
+    // assign req_port_o.size      = 2'b11;
+    // assign req_port_o.amo_op    = AMO_NONE;
+    assign mmu_dcache__data_o.paddr         = ptw_pptr_q;
+    assign mmu_dcache__data_o.cacheable     = 1'b1;
+    assign mmu_dcache__data_o.size          = SIZE_DWORD; 
+    assign mmu_dcache__data_o.is_store      = 1'b0;
+    assign mmu_dcache__data_o.is_load       = 1'b1;
+    assign mmu_dcache__data_o.is_amo        = 1'b0;
+    assign mmu_dcache__data_o.rob_idx       = '0;
+    assign mmu_dcache__data_o.rdst_idx      = '0;
+    assign mmu_dcache__data_o.rdst_is_fp    = '0;
+    assign mmu_dcache__data_o.amo_op        = AMO_NONE;
+    assign mmu_dcache__data_o.sign_ext      = '0;
+    assign mmu_dcache__data_o.data          = '0;  
+    assign mmu_dcache__data_o.way_en        = '0;    
+    assign mmu_dcache__data_o.be            = '0;
+    assign mmu_dcache__data_o.lookup_be     = '0;       
+    assign mmu_dcache__data_o.we            = '0;
     // -----------
     // TLB Update
     // -----------
@@ -153,7 +172,7 @@ module cva6_ptw
         // default assignments
         // PTW memory interface
         tag_valid_n           = 1'b0;
-        req_port_o.req   = 1'b0;
+        // req_port_o.req   = 1'b0;
         ptw_error_o           = 1'b0;
         itlb_update_o.valid   = 1'b0;
         dtlb_update_o.valid   = 1'b0;
@@ -168,6 +187,8 @@ module cva6_ptw
 
         itlb_miss_o           = 1'b0;
         dtlb_miss_o           = 1'b0;
+
+        mmu_dcache__vld_o     = 1'b0;
 
         case (state_q)
 
@@ -196,9 +217,10 @@ module cva6_ptw
 
             WAIT_GRANT: begin
                 // send a request out
-                req_port_o.req = 1'b1;
+                // req_port_o.req = 1'b1;
+                mmu_dcache__vld_o = !flush_i;
                 // wait for the WAIT_GRANT
-                if (rsp_port_i.ack) begin
+                if (dcache_mmu__rdy_i) begin
                     // send the tag valid signal one cycle later
                     tag_valid_n = 1'b1;
                     state_d     = PTE_LOOKUP;
@@ -325,10 +347,11 @@ module cva6_ptw
             // 1. in the PTE Lookup check whether we still need to wait for an rvalid
             // 2. waiting for a grant, if so: wait for it
             // if not, go back to idle
-            if ((state_q == PTE_LOOKUP && !data_rvalid_q) || ((state_q == WAIT_GRANT) && rsp_port_i.ack))
-                state_d = WAIT_RVALID;
-            else
-                state_d = IDLE;
+            // if ((state_q == PTE_LOOKUP && !data_rvalid_q) || ((state_q == WAIT_GRANT) && rsp_port_i.ack))
+            //     state_d = WAIT_RVALID;
+            // else
+            //     state_d = IDLE;
+            state_d = IDLE;
         end
     end
 
@@ -354,8 +377,8 @@ module cva6_ptw
             tlb_update_asid_q  <= tlb_update_asid_n;
             vaddr_q            <= vaddr_n;
             global_mapping_q   <= global_mapping_n;
-            data_rdata_q       <= rsp_port_i.rdata;
-            data_rvalid_q      <= rsp_port_i.valid;
+            data_rdata_q       <= dcache_mmu__rdata_i;
+            data_rvalid_q      <= dcache_mmu__rvld_i;
         end
     end
 

@@ -27,6 +27,7 @@
     parameter DCACHE_BLOCK_SIZE        = 128; // 128B
     parameter DCACHE_DATA_SIZE         = 8;   // Data Bus is 8B 
     parameter DCACHE_WAY_NUM           = 4;
+    parameter DCACHE_WAY_WTH           = $clog2(DCACHE_WAY_NUM);
 
     parameter DCACHE_TAG_LSB           = 12;
     parameter DCACHE_TAG_WTH           = 32;
@@ -70,6 +71,13 @@
 
     localparam DCACHE_NUM_BANKS        = DCACHE_LINE_WIDTH/64;
 
+
+    localparam SBUF_LEN                = 4;
+    localparam SBUF_WTH                = $clog2(SBUF_LEN);
+
+    localparam MSHR_LEN                = 4;
+    localparam MSHR_WTH                = $clog2(MSHR_LEN);
+
     // write buffer parameterization
     // localparam DCACHE_WBUF_DEPTH       = 8;
     // localparam DCACHE_MAX_TX           = 2**L15_TID_WIDTH;
@@ -93,6 +101,16 @@
       Nothing   = 3 
     } cache_state_e; 
 
+    typedef enum logic [0:0] {
+      READ  = 0,
+      WRITE = 1
+    } cache_cmd_e;
+
+    typedef enum logic [0:0] {
+      MMU   = 0,
+      LSU   = 1
+    } req_src_e;
+
     typedef struct packed {
       logic [DCACHE_TAG_WTH-1:0]                            tag; 
       cache_state_e                                         state;
@@ -115,22 +133,23 @@
       logic [DCACHE_WAY_NUM-1:0]          way_en;
       logic [DCACHE_TAG_LSB-1:0]          idx;
       logic [DCACHE_DATA_SIZE*8-1:0]      wr_data;
+      logic [DCACHE_DATA_SIZE-1:0]        wstrb;
     } data_req_t;
 
     typedef struct packed {
-      logic [DCACHE_DATA_SIZE*8-1:0]      rd_data; 
+      logic [DCACHE_WAY_NUM-1:0][DCACHE_DATA_SIZE*8-1:0] rd_data; 
     } data_rsp_t;
 
     typedef struct packed {
         logic                     fetch_valid;     // address translation valid
         logic [63:0]              fetch_paddr;     // physical address in
-        exception_t               fetch_exception; // exception occurred during fetch
+        excp_t                    fetch_exception; // exception occurred during fetch
     } icache_areq_i_t;
 
     typedef struct packed {
         logic                     fetch_valid;     // address translation valid
         logic [63:0]              fetch_paddr;     // physical address in
-        exception_t               fetch_exception; // exception occurred during fetch
+        excp_t                    fetch_exception; // exception occurred during fetch
     } mmu_icache_rsp_t;
 
     typedef struct packed {
@@ -158,7 +177,7 @@
         logic                     valid;                  // signals a valid read
         logic [FETCH_WIDTH-1:0]   data;                   // 2+ cycle out: tag
         logic [63:0]              vaddr;                  // virtual address out
-        exception_t               ex;                     // we've encountered an exception
+        excp_t                    ex;                     // we've encountered an exception
     } icache_dreq_o_t;
 
     // I$ data requests
@@ -173,64 +192,51 @@
         logic                     valid;                  // signals a valid read
         logic [FETCH_WIDTH-1:0]   data;                   // 2+ cycle out: tag
         logic [63:0]              vaddr;                  // virtual address out
-        exception_t               ex;                     // we've encountered an exception
+        excp_t                    ex;                     // we've encountered an exception
     } fetch_rsp_t;
 
-
-    typedef enum logic [3:0] {
-        AMO_NONE =4'b0000,
-        AMO_LR   =4'b0001,
-        AMO_SC   =4'b0010,
-        AMO_SWAP =4'b0011,
-        AMO_ADD  =4'b0100,
-        AMO_AND  =4'b0101,
-        AMO_OR   =4'b0110,
-        AMO_XOR  =4'b0111,
-        AMO_MAX  =4'b1000,
-        AMO_MAXU =4'b1001,
-        AMO_MIN  =4'b1010,
-        AMO_MINU =4'b1011,
-        AMO_CAS1 =4'b1100, // unused, not part of riscv spec, but provided in OpenPiton
-        AMO_CAS2 =4'b1101  // unused, not part of riscv spec, but provided in OpenPiton
-    } amo_t;
-
     typedef struct packed {
-        logic        req;       // this request is valid
-        amo_t        amo_op;    // atomic memory operation to perform
-        logic [1:0]  size;      // 2'b10 --> word operation, 2'b11 --> double word operation
-        logic [63:0] operand_a; // address
-        logic [63:0] operand_b; // data as layuoted in the register
-    } amo_req_t;
+        logic [AWTH-1:0]               paddr;   
+        logic                          cacheable; 
 
-    typedef struct packed {
-        logic        ack;    // response is valid
-        logic [63:0] result; // sign-extended, result
-    } amo_resp_t;
+        size_e                         size;
+        logic                          is_store;  
+        logic                          is_load;
+        logic                          is_amo;
+        logic [ROB_WTH-1:0]            rob_idx;
+        logic [PHY_REG_WTH-1:0]        rdst_idx;
+        logic                          rdst_is_fp;
+        amo_opcode_e                   amo_op;
+        logic                          sign_ext;
+        logic [SBUF_WTH-1:0]           sbuf_idx;
 
-
-    typedef struct packed {
-        logic [DCACHE_TAG_LSB-1:0]     addr_inx;  
-        logic [DCACHE_TAG_WTH-1:0]     addr_tag;
-        logic [63:0]                   wdata;
-        logic                          req;
-        logic                          we;
+        logic [DWTH-1:0]               data;
+        logic [DCACHE_WAY_NUM-1:0]     way_en;
         logic [7:0]                    be;
-        logic [1:0]                    size;
-        logic                          kill;
-        amo_t                          amo_op;      
+        logic [7:0]                    lookup_be;
+        logic                          we;
     } dcache_req_t;
 
     typedef struct packed {
-        logic                          ack;
         logic                          valid;
+        logic [2:0]                    offset;
+        logic                          cacheable;
+        logic                          is_store;
+        logic                          is_load;
+        logic                          is_amo;
         logic [63:0]                   rdata;
+        logic [PHY_REG_WTH-1:0]        rdst_idx;
+        logic [ROB_WTH-1:0]            rob_idx;
+        logic [SBUF_WTH-1:0]           sbuf_idx;
+        logic                          rdst_is_fp;
+        size_e                         size;           
+        amo_opcode_e                   amo_op;
+        logic[DCACHE_WAY_NUM-1:0]      way_en;
+        logic [7:0]                    be;  
+        logic                          sign_ext;
+        logic                          mshr_empty;
+        logic                          st1_idle;
     } dcache_rsp_t;
-
-    typedef struct packed {
-        logic                          data_gnt;
-        logic                          data_rvalid;
-        logic [63:0]                   data_rdata;
-    } dcache_req_o_t;
 
     typedef enum logic [0:0] {
       REFILL = 1'b0,
@@ -243,21 +249,42 @@
       logic                               we;
       logic [7:0]                         be;
       logic [63:0]                        wdata;
-      amo_t                               amo_op;
+      amo_opcode_e                        amo_op;
       logic [DCACHE_TAG_MSB-1:0]          addr;
       logic [$clog2(DCACHE_WAY_NUM)-1:0]  update_way;
-      logic [$clog2(DCACHE_WAY_NUM)-1:0]  rpl_way;
+      // logic [$clog2(DCACHE_WAY_NUM)-1:0]  rpl_way;
     } miss_req_bits_t;
 
+    typedef struct packed {
+      logic                     valid;
+      logic [31:0]              paddr;   
+      logic [MSHR_LEN-1:0][MSHR_WTH-1:0] entry_loc;
+      logic [MSHR_WTH:0]        entry_cnt;
+      miss_req_cmd_e            cmd;
+      logic[DCACHE_WAY_WTH-1:0] update_way;
+      logic                     cacheable;
+      logic                     we;     
+      logic                     issue;
+      logic                     replay;  
+    } mshr_head_t;
 
-// swap endianess in a 64bit word
-  function automatic logic[63:0] swendian64(input logic[63:0] in);
-    automatic logic[63:0] out;
-    for(int k=0; k<64;k+=8)begin
-        out[k +: 8] = in[63-k -: 8];
-    end
-    return out;
-  endfunction
+    typedef struct packed {
+      logic                       is_store;
+      logic                       is_load;  
+      logic                       is_amo;
+      req_src_e                   src;
+      logic [DWTH-1:0]            data;
+      logic [7:0]                 be;
+      logic [7:0]                 lookup_be;
+      size_e                      size;
+      logic [ROB_WTH-1:0]         rob_idx;
+      logic [PHY_REG_WTH-1:0]     rdst_idx;
+      logic                       rdst_is_fp;
+      logic                       sign_ext;
+      logic [SBUF_WTH-1:0]        sbuf_idx;  // Store Buffer idx
+      amo_opcode_e                amo_op;
+      logic[DCACHE_BLOCK_WTH-1:0] cl_offset;
+    } mshr_entry_t;
 
   function automatic logic [DCACHE_SET_ASSOC-1:0] dcache_way_bin2oh (
     input logic [$clog2(DCACHE_SET_ASSOC)-1:0] in
@@ -285,7 +312,6 @@
     out[in] = 1'b1;
     return out;
   endfunction
-
 
   function automatic logic [5:0] popcnt64 (
     input logic [63:0] in

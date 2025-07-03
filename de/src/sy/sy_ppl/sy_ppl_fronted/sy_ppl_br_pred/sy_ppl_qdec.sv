@@ -94,15 +94,15 @@ module sy_ppl_qdec
     assign imm_is_neg_o = instr_is_c ? rvc_imm[63] : rvi_imm[63];
     always_comb begin : quick_decode
         instr_type_o  = NORMAL;
-        // if (rvi_ret || rvc_ret) begin
+        // if (rvi_ret) begin
         //     instr_type_o = RET;
-        // end else if (rvi_call & rvi_jalr || rvc_call) begin
+        // end else if (rvi_call & rvi_jalr) begin
         //     instr_type_o = CALL_JALR;
         // end else if (rvi_call & rvi_jump) begin
         //     instr_type_o = CALL_JAL;
-        // end else if (rvi_jalr || rvc_jalr) begin
+        // end else if (rvi_jalr ) begin
         //     instr_type_o = JALR;
-        // end else if (rvi_jump || rvc_jump) begin
+        // end else if (rvi_jump) begin
         //     instr_type_o = JUMP;
         // end else if (rvi_branch) begin
         //     instr_type_o = BRANCH;
@@ -120,13 +120,7 @@ module sy_ppl_qdec
                 instr_type_o = JALR;
             end
         end else begin
-            if (rvi_ret) begin
-                instr_type_o = RET;   
-            end else if (rvi_call && rvi_jalr) begin
-                instr_type_o = CALL_JALR;
-            end else if (rvi_call & rvi_jump) begin
-                instr_type_o = CALL_JAL;   
-            end else if (rvi_jalr) begin
+            if (rvi_jalr) begin
                 instr_type_o = JALR;
             end else if (rvi_jump) begin
                 instr_type_o = JUMP;

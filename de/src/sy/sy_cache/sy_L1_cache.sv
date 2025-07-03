@@ -36,23 +36,34 @@ module sy_L1_cache
 ) (
   input  logic                            clk_i,
   input  logic                            rst_i,
+  input  logic                            flush_ppl_i,
   input  logic                            flush_icache_i,  
   output logic                            flush_icache_done_o,
   input  logic                            flush_dcache_i,  
   output logic                            flush_dcache_done_o,
 
   output logic                            icache_miss_o,               
-  output logic                            dcache_miss_o,               
+  // output logic                            dcache_miss_o,               
 
   output icache_mmu_req_t                 icache_mmu__req_o,
   input  mmu_icache_rsp_t                 mmu_icache__rsp_i,
   // data requests
   input  fetch_req_t                      fetch_icache__req_i,
   output fetch_rsp_t                      icache_fetch__rsp_o,
-
-  input  dcache_req_t [REQ_PORT-1:0]      dcache_req_i,
-  output dcache_rsp_t [REQ_PORT-1:0]      dcache_rsp_o,
-  
+  // =====================================
+  // [From MMU]
+  input  logic                            mmu_dcache__vld_i,
+  output logic                            dcache_mmu__rdy_o,      
+  input  dcache_req_t                     mmu_dcache__data_i,
+  output logic                            dcache_mmu__rvld_o,  
+  output logic [DWTH-1:0]                 dcache_mmu__rdata_o,
+  // =====================================
+  // [From LSU]
+  input  logic                            lsu_dcache__vld_i,
+  output logic                            dcache_lsu__rdy_o,
+  input  dcache_req_t                     lsu_dcache__data_i,
+  output dcache_rsp_t                     dcache_lsu__data_o,
+ 
   TL_BUS.Slave                            slave
 );
 
@@ -130,13 +141,21 @@ module sy_L1_cache
   ) i_dcache_inst(
         .clk_i                  (clk_i),         
         .rst_i                  (rst_i),         
+        .flush_ppl_i            (flush_ppl_i),
         .flush_i                (flush_dcache_i),             
         .flush_done_o           (flush_dcache_done_o),
 
-        .cache_miss_o           (dcache_miss_o),                               
+        // .cache_miss_o           (dcache_miss_o),                               
+        .mmu_dcache__vld_i      (mmu_dcache__vld_i  ),         
+        .dcache_mmu__rdy_o      (dcache_mmu__rdy_o  ),               
+        .mmu_dcache__data_i     (mmu_dcache__data_i ),          
+        .dcache_mmu__rvld_o     (dcache_mmu__rvld_o ),            
+        .dcache_mmu__rdata_o    (dcache_mmu__rdata_o),           
 
-        .dcache_req_i           (dcache_req_i),                
-        .dcache_rsp_o           (dcache_rsp_o),                
+        .lsu_dcache__vld_i      (lsu_dcache__vld_i ),         
+        .dcache_lsu__rdy_o      (dcache_lsu__rdy_o ),         
+        .lsu_dcache__data_i     (lsu_dcache__data_i),          
+        .dcache_lsu__data_o     (dcache_lsu__data_o),          
 
         .dcache_A_valid_o       (dcache_A_valid),                    
         .dcache_A_ready_i       (dcache_A_ready),                    

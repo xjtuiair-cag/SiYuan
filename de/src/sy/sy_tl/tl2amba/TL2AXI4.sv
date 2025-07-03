@@ -157,6 +157,7 @@ module TL2AXI4 #(
     assign fifo_in_arw_bits.bits.aw.len      =     TL_A_bits_i.size; 
     assign fifo_in_arw_bits.bits.aw.size     =     is_dword ? 3'b011 : 3'b10;   // double word or single word
     assign fifo_in_arw_bits.bits.aw.burst    =     single_trans ? axi_pkg::BURST_FIXED : axi_pkg::BURST_INCR; 
+    // assign fifo_in_arw_bits.bits.aw.burst    =     axi_pkg::BURST_INCR; 
     assign fifo_in_arw_bits.bits.aw.lock     =     '0; 
     assign fifo_in_arw_bits.bits.aw.cache    =     '0; 
     assign fifo_in_arw_bits.bits.aw.prot     =     3'b1; 
@@ -212,7 +213,7 @@ module TL2AXI4 #(
     );
 
     // save some important signals from A channel
-    assign fifo_other_bits_in.size    = is_put ? '0 : TL_A_bits_i.size;
+    assign fifo_other_bits_in.size    = TL_A_bits_i.size;
     assign fifo_other_bits_in.source  = TL_A_bits_i.source;
     assign fifo_other_bits_in.is_low_32bit = is_low_32bit;
     

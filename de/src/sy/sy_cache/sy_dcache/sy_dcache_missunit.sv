@@ -34,6 +34,9 @@ module sy_dcache_missunit
 ) (
   input  logic                      clk_i,
   input  logic                      rst_i,
+  input  logic[DCACHE_SET_SIZE-1:0][DCACHE_WAY_NUM-1:0] cl_valid_i,
+  input  logic[DCACHE_SET_SIZE-1:0][DCACHE_WAY_NUM-1:0][MSHR_WTH:0]lock_cl_i,
+
   input  logic                      flush_i,  // from pipeline             
   output logic                      flush_done_o,
 
@@ -42,12 +45,23 @@ module sy_dcache_missunit
   output logic                      probe_flight_o,
   output logic                      acquire_flight_o,
   // interface with ctrl module
-  // request from ctrl module
+  // request from mshr
   input  logic                      miss_req_i,
   output logic                      miss_ack_o,
+  input  logic                      miss_kill_i,
+  output logic                      miss_kill_done_o,
   input  miss_req_bits_t            miss_req_bits_i,
   output logic                      miss_done_o,
-  output [DCACHE_DATA_SIZE*8-1:0]   miss_rdata_o,
+  output logic [DCACHE_DATA_SIZE*8-1:0]   miss_rdata_o,
+  output logic[DCACHE_WAY_WTH-1:0]  miss_rpl_way_o,
+
+  input  logic                      lrsc_valid_i,
+  input  logic[DCACHE_SET_WTH-1:0]  lrsc_set_idx_i,
+  input  logic[DCACHE_WAY_WTH-1:0]  lrsc_way_idx_i,
+
+  input   logic                     ctrl_cl_unlock_vld_i,
+  input   logic[DCACHE_SET_WTH-1:0] ctrl_cl_unlock_idx_i,
+  input   logic[DCACHE_WAY_WTH-1:0] ctrl_cl_unlock_way_i,
   // interface with dcache mem
   output logic                      data_req_o,
   input  logic                      data_gnt_i,
@@ -90,8 +104,8 @@ module sy_dcache_missunit
 //======================================================================================================================
 // Wire & Reg declaration
 //======================================================================================================================
-  typedef enum logic[3:0] {IDLE,DIRTY,ACQUIRE,ACQUIRE_BLOCK, ACQUIRE_PERM,RELEASE_DATA,RELEASE_REQ,
-                            RELEASE,RELEASE_ACK,FLUSH,GRANT_ACK} state_e;
+  typedef enum logic[3:0] {IDLE,DIRTY,WAIT_LOCK_DONE,ACQUIRE,ACQUIRE_BLOCK, ACQUIRE_PERM,RELEASE_DATA,RELEASE_REQ,
+                            RELEASE,RELEASE_ACK,FLUSH,GRANT_ACK,KILL_ACQUIRE} state_e;
 
   typedef enum logic[3:0] {PROBE_IDLE,PROBE,PROBE_ACK,PROBE_ACK_DATA} probe_state_e;
 
@@ -147,6 +161,8 @@ module sy_dcache_missunit
   cache_state_e                               hit_cl_state_d, hit_cl_state_q;
   cache_state_e                               release_cl_state_d, release_cl_state_q;
   logic [$clog2(DCACHE_WAY_NUM)-1:0]          rpl_way;
+  logic [$clog2(DCACHE_WAY_NUM)-1:0]          rpl_way_d;
+  logic [$clog2(DCACHE_WAY_NUM)-1:0]          rpl_way_q;
   logic [$clog2(DCACHE_WAY_NUM)-1:0]          release_way;
   logic [$clog2(DCACHE_WAY_NUM)-1:0]          flush_way_idx;
   tl_pkg::TL_Permissions_Shrink               probeAck_permission;
@@ -167,7 +183,12 @@ module sy_dcache_missunit
   logic                                       release_valid;
   logic                                       is_allow_probe;
   logic                                       under_release;
+  logic                                       lrsc_lock;
+  logic [$clog2(DCACHE_WAY_NUM)-1:0]          data_rd_way_idx, data_rd_way_idx_dly;
 
+  logic[DCACHE_SET_SIZE-1:0]                  plru0;
+  logic[DCACHE_SET_SIZE-1:0][1:0]             plru1;
+  logic[DCACHE_SET_SIZE-1:0][1:0]             plru_rpl_way;
 //======================================================================================================================
 // Save request 
 //======================================================================================================================
@@ -188,7 +209,7 @@ module sy_dcache_missunit
   assign miss_req_fire = (miss_req_i && miss_ack_o);
   assign req_bits_d = miss_req_fire ? miss_req_bits_i : req_bits_q; 
   assign miss_req_idx = req_bits_d.addr[DCACHE_TAG_LSB-1:0];
-  assign rpl_way = req_bits_d.rpl_way;
+  // assign rpl_way = req_bits_d.rpl_way;
 
   assign probe_flight_d = lock_probe ? 1'b1 : (unlock_probe_dly1 ? 1'b0 : probe_flight_q);
   assign probe_flight = probe_flight_q;
@@ -213,15 +234,15 @@ module sy_dcache_missunit
         tag_req_bits_o.way_en    = cl_valid_q; 
         tag_req_bits_o.idx       = probe_idx; 
       end else if (release_tag_wr) begin  // modify the release cache line
-        tag_req_bits_o.way_en    = flush_q ? flush_way : 1'b1 << req_bits_q.rpl_way; 
+        tag_req_bits_o.way_en    = flush_q ? flush_way : 1'b1 << rpl_way_d; 
         tag_req_bits_o.idx       = flush_q ? flush_idx : miss_req_idx; 
       end else if (refill_tag_wr) begin
-        tag_req_bits_o.way_en    = (req_bits_q.cmd == REFILL) ? (1'b1 << req_bits_q.rpl_way) : (1'b1 << req_bits_q.update_way); 
+        tag_req_bits_o.way_en    = (req_bits_q.cmd == REFILL) ? (1'b1 << rpl_way_d) : (1'b1 << req_bits_q.update_way); 
         tag_req_bits_o.idx       = miss_req_idx;  
       end
     end else begin          // for tag read
       if (refill_tag_rd) begin 
-        tag_req_bits_o.way_en    = 1'b1 << req_bits_d.rpl_way;     
+        tag_req_bits_o.way_en    = 1'b1 << rpl_way_d;     
         tag_req_bits_o.idx       = miss_req_idx;
       end else if (flush_tag_rd) begin
         tag_req_bits_o.way_en    = flush_way;
@@ -261,19 +282,20 @@ module sy_dcache_missunit
   assign data_req_o             = data_rd_en || data_wr_en;
   assign data_req_bits_o.we     = data_wr_en ? 1'b1 : 1'b0; 
   assign data_req_bits_o.wr_data  = dcache_D_bits_i.data; // only write data from D channel
+  assign data_req_bits_o.wstrb  = 8'hff;
 
   always_comb begin : gen_data_way_and_idx
     data_req_bits_o.way_en      = 4'h0;
     data_req_bits_o.idx         = 4'h0;
     if (data_wr_en) begin // for data write
-      data_req_bits_o.way_en    = (req_bits_q.cmd == REFILL) ? (1'b1 << req_bits_q.rpl_way) : (1'b1 << req_bits_q.update_way);
+      data_req_bits_o.way_en    = (req_bits_q.cmd == REFILL) ? (1'b1 << rpl_way_d) : (1'b1 << req_bits_q.update_way);
       data_req_bits_o.idx       = waddr_q << DCACHE_DATA_WTH; 
     end else begin        // for data read
       if (probe_data_rd) begin
         data_req_bits_o.way_en    = cl_valid_d; 
         data_req_bits_o.idx       = data_rd_addr_d;
       end else if (release_data_rd) begin
-        data_req_bits_o.way_en    = flush_q ? flush_way : (1'b1 << req_bits_q.rpl_way); 
+        data_req_bits_o.way_en    = flush_q ? flush_way : (1'b1 << rpl_way_d); 
         data_req_bits_o.idx       = data_rd_addr_d;
       end 
     end
@@ -321,7 +343,7 @@ module sy_dcache_missunit
 
   assign hit_cl_state_d = (tag_rd_en_dly1 && |cl_valid) ? tag_rsp_bits_i.tag_data[cl_valid_idx].state : hit_cl_state_q;
 
-  assign release_way = flush_q ? flush_way_idx : req_bits_q.rpl_way;
+  assign release_way = flush_q ? flush_way_idx : rpl_way_d;
   assign release_cl_state_d = (tag_rd_en_dly1 && tag_rsp_bits_i.tag_data[release_way].valid) ? 
                                 tag_rsp_bits_i.tag_data[release_way].state : release_cl_state_q;
   assign release_addr_tag_d = (tag_rd_en_dly1 && tag_rsp_bits_i.tag_data[release_way].valid) ? 
@@ -340,7 +362,7 @@ module sy_dcache_missunit
       end else if (dcache_C_valid_o && dcache_C_ready_i) begin  // releaseData or probeAckData
         counter_d = (state_q == RELEASE_DATA || probe_state_q == PROBE_ACK_DATA) ? (DCACHE_BLOCK_SIZE / DCACHE_DATA_SIZE - 1) : '0;
       end else if (dcache_D_valid_i && dcache_D_ready_o) begin
-        counter_d = (state_q == ACQUIRE_BLOCK) ? (DCACHE_BLOCK_SIZE / DCACHE_DATA_SIZE - 1) : '0; 
+        counter_d = (state_q == ACQUIRE_BLOCK || state_q == KILL_ACQUIRE) ? (DCACHE_BLOCK_SIZE / DCACHE_DATA_SIZE - 1) : '0; 
         waddr_d = waddr_q + 1'b1;
       end
     end else begin
@@ -455,13 +477,13 @@ module sy_dcache_missunit
       dcache_C_bits_o.opcode  = (probe_state_q==PROBE_ACK) ? tl_pkg::ProbeAck: tl_pkg::ProbeAckData;
       dcache_C_bits_o.param   = |cl_valid_q ? probeAck_permission : tl_pkg::NtoN;        
       dcache_C_bits_o.size    = (probe_state_q==PROBE_ACK) ? '0 : (DCACHE_BLOCK_SIZE / DCACHE_DATA_SIZE - 1);         
-      dcache_C_bits_o.data    = (probe_state_q==PROBE_ACK) ? '0 : data_rsp_bits_i.rd_data;
+      dcache_C_bits_o.data    = (probe_state_q==PROBE_ACK) ? '0 : data_rsp_bits_i.rd_data[data_rd_way_idx_dly]; // TODO
       dcache_C_bits_o.address = probe_addr_q;
     end else begin                    // for release
       dcache_C_bits_o.opcode  = (state_q==RELEASE_DATA) ? tl_pkg::ReleaseData: tl_pkg::Release;
       dcache_C_bits_o.param   = release_permission;
       dcache_C_bits_o.size    = (state_q==RELEASE_DATA) ? (DCACHE_BLOCK_SIZE / DCACHE_DATA_SIZE - 1) : '0;
-      dcache_C_bits_o.data    = (state_q==RELEASE_DATA) ? data_rsp_bits_i.rd_data : '0;
+      dcache_C_bits_o.data    = (state_q==RELEASE_DATA) ? data_rsp_bits_i.rd_data[data_rd_way_idx_dly] : '0; // TODO
       if (flush_q) begin
         dcache_C_bits_o.address = {release_addr_tag_q,flush_idx_q[DCACHE_TAG_LSB-1:DCACHE_BLOCK_MSB],{DCACHE_BLOCK_WTH{1'b0}}};
       end else begin
@@ -500,15 +522,85 @@ module sy_dcache_missunit
   // E channel 
   assign sink_d = dcache_D_valid_i && dcache_D_ready_o ? dcache_D_bits_i.sink : sink_q;
   assign dcache_E_bits_o.sink = sink_q;
+//======================================================================================================================
+// replacement strategy 
+//======================================================================================================================
+    logic [DCACHE_SET_WTH-1:0] set_inx;
+    logic [DCACHE_WAY_WTH-1:0] hit_idx;
+    logic [DCACHE_SET_WTH-1:0] miss_set_idx;
+    logic                      all_ways_valid;                            
+    assign hit_idx = ctrl_cl_unlock_idx_i;
+    assign set_inx = ctrl_cl_unlock_way_i;
+    always_ff @(`DFF_CR(clk_i, rst_i)) begin : plru
+        if (`DFF_IS_R(rst_i)) begin
+            for (integer i=0; i<DCACHE_SET_SIZE; i++) begin
+                plru0[i] <= `TCQ 1'b0;
+                plru1[i] <= `TCQ 2'h0;
+            end
+        end else begin
+            if (ctrl_cl_unlock_vld_i) begin
+                plru0[set_inx] <= `TCQ hit_idx[0];
+                if (!hit_idx[0]) begin
+                    plru1[set_inx][0] <= `TCQ hit_idx[1];
+                end else begin
+                    plru1[set_inx][1] <= `TCQ hit_idx[1];
+                end
+            end
+        end
+    end
+    always_comb begin
+        for(integer i=0; i<DCACHE_SET_SIZE; i++) begin
+            plru_rpl_way[i][0] = !plru0[i];
+            plru_rpl_way[i][1] = !plru0[i] ? !plru1[1] : !plru1[0];
+        end
+    end
 
+    assign miss_set_idx   = req_bits_d.addr[DCACHE_SET_MSB-1:DCACHE_SET_LSB];  
+    logic [DCACHE_WAY_WTH-1:0] inv_way; 
+    lzc #(
+      .WIDTH ( DCACHE_WAY_NUM)
+    ) i_lzc_inv (
+      .in_i    ( ~cl_valid_i[miss_set_idx]        ), 
+      .cnt_o   ( inv_way                         ),
+      .empty_o ( all_ways_valid                  )
+    );
+    logic [DCACHE_WAY_NUM-1:0]  is_lock;
+    logic [DCACHE_WAY_WTH-1:0]  non_lock_way;
+    logic                       all_lock;
+    always_comb begin
+      for (integer i=0; i<DCACHE_WAY_NUM; i++) begin
+        is_lock[i] = lock_cl_i[miss_set_idx][i] != '0;
+      end
+    end
+    lzc #(
+      .WIDTH ( DCACHE_WAY_NUM)
+    ) i_lzc_lock(
+      .in_i    ( ~is_lock                        ), 
+      .cnt_o   ( non_lock_way                    ),
+      .empty_o ( all_lock                        )
+    );
+    logic [DCACHE_WAY_WTH-1:0] plru_way;
+    logic plru_rpl_way_is_lock;
+    logic rpl_way_is_lock;
+    assign plru_way = plru_rpl_way[miss_set_idx];
+    assign plru_rpl_way_is_lock = is_lock[plru_way];
+    // if all cache line is valid, through plru to choose replace way, otherwise choose invalid way
+    assign rpl_way = all_ways_valid ? (plru_rpl_way_is_lock ? non_lock_way : plru_way) : inv_way;
+    assign rpl_way_is_lock = is_lock[rpl_way_d];
+    // assign rpl_way_is_lock_o = lock_cl_q[rpl_idx_i][rpl_way_i] != '0;
 //======================================================================================================================
 // FSM
 //======================================================================================================================
+  assign lrsc_lock = lrsc_valid_i && req_bits_q.cmd == REFILL 
+                    && req_bits_q.addr[DCACHE_SET_MSB-1:DCACHE_SET_LSB] == lrsc_set_idx_i 
+                    && rpl_way_d == lrsc_way_idx_i;
+  assign miss_rpl_way_o = req_bits_q.cmd == UPDATE ? req_bits_q.update_way : rpl_way_q;
   always_comb begin : miss_unit_fsm
     // default assignment
     state_d                 = state_q;
     miss_ack_o              = 1'b0;
     miss_done_o             = 1'b0;
+    miss_kill_done_o        = 1'b0;
     set_flush_mark          = 1'b0;
     flush_inc               = 1'b0;
     flush_dcache_mem_o      = 1'b0;
@@ -524,6 +616,8 @@ module sy_dcache_missunit
     dcache_E_valid_o        = 1'b0; 
     dcache_D_ready_o        = 1'b0;
 
+    rpl_way_d               = rpl_way_q;
+
     unique case (state_q)
         // wait for an incoming request
         IDLE: begin
@@ -536,6 +630,7 @@ module sy_dcache_missunit
             state_d = FLUSH;
           end else if (miss_req_i) begin
             miss_ack_o = 1'b1;
+            rpl_way_d = rpl_way;
             if (miss_req_bits_i.cmd == REFILL && miss_req_bits_i.cacheable) begin // Refill request
               refill_tag_rd = 1'b1;
               if (tag_gnt_i) begin
@@ -551,12 +646,32 @@ module sy_dcache_missunit
           if (probe_req) begin
             state_d = IDLE;
           end else begin
-            if (|is_cl_dirty) begin
+            if (miss_kill_i) begin
+              miss_kill_done_o = 1'b1;
+              state_d = IDLE;
+            // TODO : judge whether the cache line is locked
+            end else if (rpl_way_is_lock || lrsc_lock) begin 
+              state_d = WAIT_LOCK_DONE;
+            end else if (|is_cl_dirty) begin
               state_d = RELEASE_REQ;    // release with data        
+              release_tag_wr = 1'b1;
             // end else if (|is_valid) begin
             //   state_d = RELEASE;        // release without data
             end else begin   
               state_d = ACQUIRE;      
+              release_tag_wr = 1'b1;
+            end
+          end
+        end
+        WAIT_LOCK_DONE: begin
+          if (miss_kill_i) begin
+            miss_kill_done_o = 1'b1;
+            state_d = IDLE;
+          end else begin
+            rpl_way_d = rpl_way;
+            refill_tag_rd = 1'b1;
+            if (tag_gnt_i) begin
+              state_d = DIRTY;
             end
           end
         end
@@ -578,7 +693,7 @@ module sy_dcache_missunit
           if (dcache_C_ready_i) begin
             // transaction finish, wait release ack 
             if (transaction_last) begin
-              release_tag_wr = 1'b1;   // when transaction finish, write state to Nothing
+              // release_tag_wr = 1'b1;   // when transaction finish, write state to Nothing
               state_d = RELEASE_ACK;
             // transaction not finish, read next data
             end else begin
@@ -610,10 +725,15 @@ module sy_dcache_missunit
           if (probe_req) begin
             state_d = IDLE;
           end else begin
-            dcache_A_valid_o = 1'b1;
-            if (dcache_A_ready_i) begin
-              // state_d = (req_bits_q.cmd == UPDATE || !cacheable) ? ACQUIRE_PERM : ACQUIRE_BLOCK;
-              state_d = !cacheable ? ACQUIRE_PERM : ACQUIRE_BLOCK;
+            if (miss_kill_i) begin
+              miss_kill_done_o = 1'b1;
+              state_d = IDLE; 
+            end else begin
+              dcache_A_valid_o = 1'b1;
+              if (dcache_A_ready_i) begin
+                // state_d = (req_bits_q.cmd == UPDATE || !cacheable) ? ACQUIRE_PERM : ACQUIRE_BLOCK;
+                state_d = !cacheable ? ACQUIRE_PERM : ACQUIRE_BLOCK;
+              end
             end
           end
         end
@@ -631,15 +751,28 @@ module sy_dcache_missunit
           end
         end
         ACQUIRE_BLOCK : begin
+          if (miss_kill_i) begin
+            miss_kill_done_o = 1'b1;
+            state_d = KILL_ACQUIRE;
+          end else begin
+            dcache_D_ready_o = 1'b1;
+            if (dcache_D_valid_i) begin
+              refill_data_wr = 1'b1;          // write data
+              if (transaction_last) begin
+                refill_tag_wr = 1'b1;     // if transaction finish, modify state and tag
+                miss_done_o = 1'b1;
+                state_d = cacheable ? GRANT_ACK : IDLE;
+              end
+            end 
+          end
+        end
+        KILL_ACQUIRE : begin
           dcache_D_ready_o = 1'b1;
           if (dcache_D_valid_i) begin
-            refill_data_wr = 1'b1;          // write data
             if (transaction_last) begin
-              refill_tag_wr = 1'b1;     // if transaction finish, modify state and tag
-              miss_done_o = 1'b1;
               state_d = cacheable ? GRANT_ACK : IDLE;
             end
-          end 
+          end
         end
         GRANT_ACK: begin
           dcache_E_valid_o = 1'b1;
@@ -751,6 +884,7 @@ module sy_dcache_missunit
       data_rd_addr_q            <= '0;
       probe_flight_q            <= '0;
       unlock_probe_dly1         <= '0;
+      rpl_way_q                 <= '0;
     end else begin
       state_q                   <= state_d;
       probe_state_q             <= probe_state_d;
@@ -774,10 +908,49 @@ module sy_dcache_missunit
       data_rd_addr_q            <= data_rd_addr_d;
       probe_flight_q            <= probe_flight_d;
       unlock_probe_dly1         <= unlock_probe;
+      rpl_way_q                 <= rpl_way_d;
     end
+  end
+
+  oneHot2Int #(
+    .WIDTH    (DCACHE_WAY_NUM)
+  ) way_idx(
+      .in_i       (data_req_bits_o.way_en),
+      .cnt_o      (data_rd_way_idx),
+      .empty_o    ()
+  );
+  always_ff @(posedge clk_i or negedge rst_i)begin
+      if(!rst_i) begin
+        data_rd_way_idx_dly <= '0;
+      end else begin
+        data_rd_way_idx_dly <= data_rd_way_idx;
+      end
   end
 
 //======================================================================================================================
 // Signals for simulation or probes
 //======================================================================================================================
+(* mark_debug = "true" *) state_e prb_missunit_state;
+(* mark_debug = "true" *) logic[DCACHE_WAY_WTH-1:0] prb_missunit_rpl_way;
+(* mark_debug = "true" *) logic                     prb_missunit_all_lock;
+(* mark_debug = "true" *) logic[DCACHE_WAY_NUM-1:0] prb_missunit_is_lock;
+(* mark_debug = "true" *) logic                     prb_missunit_all_way_valid;
+(* mark_debug = "true" *) logic[DCACHE_WAY_NUM-1:0] prb_missunit_way_valid;
+assign prb_missunit_state    = state_q;
+assign prb_missunit_rpl_way  = rpl_way;
+assign prb_missunit_all_lock = all_lock;
+assign prb_missunit_is_lock  = is_lock;
+assign prb_missunit_all_way_valid = all_ways_valid;
+assign prb_missunit_way_valid = cl_valid_i[miss_set_idx];
+
+(* mark_debug = "true" *)  logic                    prb_missunit_c_valid;
+(* mark_debug = "true" *)  logic                    prb_missunit_c_ready;
+(* mark_debug = "true" *)  logic[63:0]              prb_missunit_c_addr;
+(* mark_debug = "true" *)  logic[63:0]              prb_missunit_c_data;
+
+assign prb_missunit_c_valid = dcache_C_valid_o;
+assign prb_missunit_c_ready = dcache_C_ready_i;
+assign prb_missunit_c_addr  = dcache_C_bits_o.address;
+assign prb_missunit_c_data  = dcache_C_bits_o.data;
+
 endmodule

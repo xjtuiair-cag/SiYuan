@@ -34,7 +34,7 @@ module cva6_mmu
         // LSU interface
         // this is a more minimalistic interface because the actual addressing logic is handled
         // in the LSU as we distinguish load and stores, what we do here is simple address translation
-        input  exception_t                      misaligned_ex_i,
+        input  excp_t                           misaligned_ex_i,
         input  logic                            lsu_req_i,        // request address translation
         input  logic [63:0]                     lsu_vaddr_i,      // virtual address in
         input  logic                            lsu_is_store_i,   // the translation is requested by a store
@@ -44,7 +44,7 @@ module cva6_mmu
         // Cycle 1
         output logic                            lsu_valid_o,      // translation is valid
         output logic [63:0]                     lsu_paddr_o,      // translated address
-        output exception_t                      lsu_exception_o,  // address translation threw an exception
+        output excp_t                           lsu_exception_o,  // address translation threw an exception
         // General control signals
         input priv_lvl_t                        priv_lvl_i,
         input priv_lvl_t                        ld_st_priv_lvl_i,
@@ -58,8 +58,12 @@ module cva6_mmu
         output logic                            itlb_miss_o,
         output logic                            dtlb_miss_o,
         // PTW memory interface
-        input  dcache_rsp_t                     rsp_port_i,
-        output dcache_req_t                     req_port_o
+        output logic                            mmu_dcache__vld_o,
+        input  logic                            dcache_mmu__rdy_i,      
+        output dcache_req_t                     mmu_dcache__data_o,
+        input  logic                            dcache_mmu__rvld_i,  
+        input  logic [DWTH-1:0]                 dcache_mmu__rdata_i
+
 );
 
     logic        iaccess_err;   // insufficient privilege to access this instruction page
@@ -152,9 +156,11 @@ module cva6_mmu
         .dtlb_hit_i             ( dtlb_lu_hit           ),
         .dtlb_vaddr_i           ( lsu_vaddr_i           ),
 
-        .rsp_port_i            ( rsp_port_i             ),
-        .req_port_o            ( req_port_o             ),
-
+        .mmu_dcache__vld_o      (mmu_dcache__vld_o  ),  
+        .dcache_mmu__rdy_i      (dcache_mmu__rdy_i  ),        
+        .mmu_dcache__data_o     (mmu_dcache__data_o ),   
+        .dcache_mmu__rvld_i     (dcache_mmu__rvld_i ),     
+        .dcache_mmu__rdata_i    (dcache_mmu__rdata_i),   
         .*
      );
 
@@ -201,7 +207,7 @@ module cva6_mmu
         if (enable_translation_i) begin
             // we work with SV39, so if VM is enabled, check that all bits [63:38] are equal
             if (icache_areq_i.fetch_req && !((&icache_areq_i.fetch_vaddr[63:38]) == 1'b1 || (|icache_areq_i.fetch_vaddr[63:38]) == 1'b0)) begin
-                icache_areq_o.fetch_exception = {INSTR_ACCESS_FAULT, icache_areq_i.fetch_vaddr, 1'b1};
+                icache_areq_o.fetch_exception = {INST_ACCESS_FAULT, icache_areq_i.fetch_vaddr, 1'b1};
             end
 
             icache_areq_o.fetch_valid = 1'b0;
@@ -226,7 +232,7 @@ module cva6_mmu
                 // we got an access error
                 if (iaccess_err) begin
                     // throw a page fault
-                    icache_areq_o.fetch_exception = {INSTR_PAGE_FAULT, icache_areq_i.fetch_vaddr, 1'b1};
+                    icache_areq_o.fetch_exception = {INST_PAGE_FAULT, icache_areq_i.fetch_vaddr, 1'b1};
                 end
             end else
             // ---------
@@ -235,12 +241,12 @@ module cva6_mmu
             // watch out for exceptions happening during walking the page table
             if (ptw_active && walking_instr) begin
                 icache_areq_o.fetch_valid = ptw_error;
-                icache_areq_o.fetch_exception = {INSTR_PAGE_FAULT, {25'b0, update_vaddr}, 1'b1};
+                icache_areq_o.fetch_exception = {INST_PAGE_FAULT, {25'b0, update_vaddr}, 1'b1};
             end
         end
         // if it didn't match any execute region throw an `Instruction Access Fault`
         if (!match_any_execute_region) begin
-          icache_areq_o.fetch_exception = {INSTR_ACCESS_FAULT, icache_areq_o.fetch_paddr, 1'b1};
+          icache_areq_o.fetch_exception = {INST_ACCESS_FAULT, icache_areq_o.fetch_paddr, 1'b1};
         end
     end
 
@@ -252,7 +258,7 @@ module cva6_mmu
     //-----------------------
     logic [63:0] lsu_vaddr_n,     lsu_vaddr_q;
     pte_t dtlb_pte_n,      dtlb_pte_q;
-    exception_t  misaligned_ex_n, misaligned_ex_q;
+    excp_t       misaligned_ex_n, misaligned_ex_q;
     logic        lsu_req_n,       lsu_req_q;
     logic        lsu_is_store_n,  lsu_is_store_q;
     logic        dtlb_hit_n,      dtlb_hit_q;
@@ -307,12 +313,12 @@ module cva6_mmu
                     // check if the page is write-able and we are not violating privileges
                     // also check if the dirty flag is set
                     if (!dtlb_pte_q.w || daccess_err || !dtlb_pte_q.d) begin
-                        lsu_exception_o = {STORE_PAGE_FAULT, lsu_vaddr_q, 1'b1};
+                        lsu_exception_o = {ST_AMO_PAGE_FAULT, lsu_vaddr_q, 1'b1};
                     end
 
                 // this is a load, check for sufficient access privileges - throw a page fault if necessary
                 end else if (daccess_err) begin
-                    lsu_exception_o = {LOAD_PAGE_FAULT, lsu_vaddr_q, 1'b1};
+                    lsu_exception_o = {LD_PAGE_FAULT, lsu_vaddr_q, 1'b1};
                 end
             end else
 
@@ -327,9 +333,9 @@ module cva6_mmu
                     lsu_valid_o = 1'b1;
                     // the page table walker can only throw page faults
                     if (lsu_is_store_q) begin
-                        lsu_exception_o = {STORE_PAGE_FAULT, {25'b0, update_vaddr}, 1'b1};
+                        lsu_exception_o = {ST_AMO_PAGE_FAULT, {25'b0, update_vaddr}, 1'b1};
                     end else begin
-                        lsu_exception_o = {LOAD_PAGE_FAULT, {25'b0, update_vaddr}, 1'b1};
+                        lsu_exception_o = {LD_PAGE_FAULT, {25'b0, update_vaddr}, 1'b1};
                     end
                 end
             end

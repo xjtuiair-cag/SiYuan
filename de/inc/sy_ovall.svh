@@ -16,7 +16,7 @@
 
   localparam cacheable_region = 1;
   localparam logic [NrMaxRules-1:0][63:0] CachedRegionAddrBase = {64'h8000_0000};
-  localparam logic [NrMaxRules-1:0][63:0] CachedRegionLength =  {64'h2000_0000};
+  localparam logic [NrMaxRules-1:0][63:0] CachedRegionLength =  {64'h40000000};
 
 
   typedef struct packed {

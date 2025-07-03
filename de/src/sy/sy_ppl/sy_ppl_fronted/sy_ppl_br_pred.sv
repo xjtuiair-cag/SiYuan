@@ -75,7 +75,7 @@ module sy_ppl_br_pred
     logic[1:0]                      bp_valid_each;
     logic[1:0][IWTH-1:0]            instr_after_reply;  
     logic[1:0]                      instr_is_c;     
-    logic[1:0]                      imm_is_neg;     
+    logic[1:0]                      imm_is_neg;         
 //======================================================================================================================
 // Instance
 //======================================================================================================================
@@ -193,9 +193,6 @@ module sy_ppl_br_pred
                     //     bp_addr_o = jump_addr[i];
                     // end
                     // if (bht_pred.vld && bht_pred.taken || imm_is_neg[i]) begin
-                    //     bp_valid_each[i] = instr_vld_i[i];
-                    //     bp_addr_o = jump_addr[i];
-                    // end 
                     if (imm_is_neg[i]) begin
                         bp_valid_each[i] = instr_vld_i[i];
                         bp_addr_o = jump_addr[i];
@@ -240,5 +237,8 @@ module sy_ppl_br_pred
     assign prb_bht_update       = bht_update_i;
     assign prb_btb_update       = btb_update_i;
 // synopsys translate_on
+
+
+
 
 endmodule

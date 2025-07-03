@@ -161,7 +161,7 @@ module sy_icache
   // address must be aligned to size 
   assign icache_A_bits_o.address = cacheable_d ? ((paddr_d >> ICACHE_BLOCK_WTH) << ICACHE_BLOCK_WTH) : 
                                                  ((paddr_d >> ICACHE_DATA_WTH) << ICACHE_DATA_WTH);  
-  assign icache_A_bits_o.mask = {tl_pkg::MASK_WTH{1'b1}};
+  assign icache_A_bits_o.mask = '0;
   assign icache_A_bits_o.data = '0;
   assign icache_A_bits_o.corrupt = 1'b0;
 
@@ -482,6 +482,16 @@ module sy_icache
 //======================================================================================================================
 // Signals for simulation or probes
 //======================================================================================================================
+
+(* mark_debug = "true" *) logic[63:0]        prb_icache_vaddr;
+(* mark_debug = "true" *) logic[31:0]        prb_icache_paddr;
+(* mark_debug = "true" *) logic              prb_icache_atrans_done;
+(* mark_debug = "true" *) logic              prb_icache_fet_req;
+
+assign prb_icache_atrans_done = mmu_icache__rsp_i.fetch_valid;
+assign prb_icache_fet_req = fetch_icache__req_i.req;
+assign prb_icache_vaddr = vaddr_q;
+assign prb_icache_paddr = paddr_q;
 
 // synopsys translate_off
 // synopsys translate_on

@@ -58,7 +58,7 @@ module sy_ppl_instr_buffer
     output logic[AWTH-1:0]                              dec_npc_o,
     output logic[IWTH-1:0]                              dec_instr_o,
     output logic                                        dec_is_compressed_o,
-    output exception_t                                  dec_ex_o
+    output excp_t                                       dec_ex_o
 );
 
 //======================================================================================================================
@@ -168,7 +168,7 @@ module sy_ppl_instr_buffer
     // dec_instr_o = instr_data_out[fifo_out_idx_q].instr;
     // dec_is_compressed_o = instr_data_out[fifo_out_idx_q].is_c;
     dec_ex_o.valid = instr_data_out[fifo_out_idx_q].ex;
-    dec_ex_o.cause = instr_data_out[fifo_out_idx_q].ex ? INSTR_PAGE_FAULT : ILLEGAL_INSTR; 
+    dec_ex_o.cause.excp = instr_data_out[fifo_out_idx_q].ex ? INST_PAGE_FAULT : ILLEGAL_INST;
     // dec_ex_o.tval = instr_data_out[fifo_out_idx_q].ex ? instr_data_out[fifo_out_idx_q].pc : dec_instr_o;
     dec_ex_o.tval = instr_data_out[fifo_out_idx_q].ex ? instr_data_out[fifo_out_idx_q].pc : {16'b0, instr_before_reply[15:0]};
     pop_instr = '0;

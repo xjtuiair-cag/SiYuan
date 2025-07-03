@@ -29,7 +29,7 @@ module fpu_wrap (
   output logic [TRANS_ID_BITS-1:0] fpu_trans_id_o,
   output logic [FLEN-1:0]          result_o,
   output logic                     fpu_valid_o,
-  output exception_t               fpu_exception_o
+  output logic[4:0]                fpu_status_o
 );
 
   // this is a workaround
@@ -538,8 +538,7 @@ module fpu_wrap (
     );
 
     // Pack status flag into exception cause, tval ignored in wb, exception is always invalid
-    assign fpu_exception_o.cause = {59'h0, fpu_status};
-    assign fpu_exception_o.valid = 1'b0;
+    assign fpu_status_o = fpu_status;
 
     // Donwstream write port is dedicated to FPU and always ready
     assign fpu_out_ready = 1'b1;
