@@ -118,7 +118,7 @@ module sy_ppl_lsu_sbuf
     logic                                   non_cacheable_done_d,non_cacheable_done_q;
     logic[SBUF_WTH:0]                       no_retire_cnt_d,no_retire_cnt_q;
 //======================================================================================================================
-// Issue Queen
+// Issue Queue
 //======================================================================================================================
     assign sbuf_is_full = {~del_flag_q,del_idx_q} == {ins_flag_q,ins_idx_q};
     assign sbuf_is_empty= { del_flag_q,del_idx_q} == {ins_flag_q,ins_idx_q};

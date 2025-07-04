@@ -110,9 +110,9 @@ module sy_ppl_csr
     logic[DWTH-1:0]                 csr_wdata;            
     logic[CSR_IQ_WTH-1:0]           csr_wr_iq_idx;
 //======================================================================================================================
-// Stage0 : Issue Queen
+// Stage0 : Issue Queue
 //======================================================================================================================
-    // Stage 0 : Issue Queen
+    // Stage 0 : Issue Queue
     sy_ppl_csr_iq csr_iq_inst(
         .clk_i                  (clk_i),                           
         .rst_i                  (rst_i),                           
@@ -192,7 +192,7 @@ module sy_ppl_csr
     assign csr_regfile_req_o.is_wr        = issue_packet_st1.csr_cmd.csr_wr_en;
     assign csr_regfile_req_o.is_rd        = issue_packet_st1.csr_cmd.csr_rd_en;
 //======================================================================================================================
-// Stage2 : Write data to CSR Issue Queen and commit to ROB and write back to GPR  
+// Stage2 : Write data to CSR Issue Queue and commit to ROB and write back to GPR  
 //======================================================================================================================
      always_ff @(`DFF_CR(clk_i, rst_i)) begin
         if(`DFF_IS_R(rst_i)) begin
@@ -223,7 +223,7 @@ module sy_ppl_csr
     assign csr_rob__commit_o.rob_idx  = csr_rob_idx_st2;
     assign csr_rob__commit_o.excp_en  = csr_regfile_rsp_i.excp_en;
     assign csr_rob__commit_o.flush_en = csr_regfile_rsp_i.need_flush;
-    // write back to CSR Issue Queen
+    // write back to CSR Issue Queue
     assign csr_wr_en = csr_wr_en_st2;
     assign csr_wr_iq_idx = csr_iq_idx_st2;
     always_comb begin

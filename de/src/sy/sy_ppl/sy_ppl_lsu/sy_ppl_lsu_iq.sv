@@ -127,13 +127,13 @@ module sy_ppl_lsu_iq
     logic[LSU_IQ_WTH-1:0]                   atrans_sel_idx;        
     logic                                   issue_is_empty;
 //======================================================================================================================
-// Issue Queen
+// Issue Queue
 //======================================================================================================================
     assign iq_is_full = {~del_flag_q,del_idx_q} == {ins_flag_q,ins_idx_q};
     assign iq_is_empty= { del_flag_q,del_idx_q} == {ins_flag_q,ins_idx_q};
     assign lsu_dis__rdy_o = ~iq_is_full;
     assign ins_en = dis_lsu__vld_i && lsu_dis__rdy_o;
-    // insert new instr to issue queen
+    // insert new instr to issue queue
        always_comb begin : rs_state
         for (integer i=0; i<LSU_IQ_LEN; i=i+1) begin
             // awake
