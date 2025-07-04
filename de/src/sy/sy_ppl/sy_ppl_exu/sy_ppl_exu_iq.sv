@@ -89,14 +89,14 @@ module sy_ppl_exu_iq
     logic                                   sel_act;        
     logic[EXU_IQ_WTH-1:0]                   sel_idx;        
 //======================================================================================================================
-// Issue Queen
+// Issue Queue
 //======================================================================================================================
     assign iq_is_full = (cnt_q == EXU_IQ_LEN);
     assign iq_is_empty = (cnt_q == 0);
     assign exu_dis__rdy_o = ~iq_is_full;
     assign ins_en = dis_exu__vld_i && exu_dis__rdy_o;
     // insert new instr to issue queen
-    // The IQ(Issue Queen) is a compressed issue queen
+    // The IQ(Issue Queue) is a compressed issue queen
     always_comb begin : rs_state
         for (integer i=0; i<EXU_IQ_LEN; i=i+1) begin
             // awake

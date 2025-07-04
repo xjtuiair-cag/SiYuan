@@ -142,9 +142,9 @@ module sy_ppl_exu
     logic                           csr_busy;
     logic                           mdu_wb_stall;
 //======================================================================================================================
-// Stage0 : Issue Queen
+// Stage0 : Issue Queue
 //======================================================================================================================
-    // Stage 0 : Issue Queen
+    // Stage 0 : Issue Queue
     sy_ppl_exu_iq exu_iq_inst(
         .clk_i                  (clk_i),                           
         .rst_i                  (rst_i),                           
@@ -285,7 +285,7 @@ module sy_ppl_exu
         end
     end
 
-    // LSU Queen has enough space and div is not busy
+    // LSU Queue has enough space and div is not busy
     assign div_busy_stall = exu_dis_act && div_busy && issue_packet_st2.instr_cls == INSTR_CLS_MDU && 
                                  (issue_packet_st2.exu_cmd.mdu_op == MDU_OP_DIV || issue_packet_st2.exu_cmd.mdu_op == MDU_OP_REM);
     assign mdu_wb_stall   = exu_dis_act && div_wb_stall && issue_packet_st2.instr_cls == INSTR_CLS_MDU && 

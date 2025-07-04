@@ -110,7 +110,7 @@ module sy_ppl_csr_iq
     logic                                   release_raw; // read after write dependency  
     logic[CSR_IQ_WTH-1:0]                   release_raw_idx;   
 //======================================================================================================================
-// Issue Queen
+// Issue Queue
 //======================================================================================================================
     // assign iq_is_full = (cnt_q == CSR_IQ_LEN);
     assign iq_is_full = {~del_flag_q,del_idx_q} == {ins_flag_q,ins_idx_q};
@@ -137,7 +137,7 @@ module sy_ppl_csr_iq
            end
         end 
     end 
-    // look up Issue Queen to check RAW dependency
+    // look up Issue Queue to check RAW dependency
     always_comb begin : dependency_check
         raw_exist = 1'b0;
         raw_iq_idx = '0;

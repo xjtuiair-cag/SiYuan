@@ -36,7 +36,7 @@ module sy_ppl_lsu_ctrl
     input   logic                           rst_i,                      
     input   logic                           flush_i,
     // =====================================
-    // [From Issue Queen]
+    // [From Issue Queue]
     input   logic                           iq_issue_vld_i,
     output  logic                           iq_issue_rdy_o,
     input   logic[AWTH-1:0]                 iq_issue_paddr_i,

@@ -127,7 +127,7 @@ module sy_ppl_lsu_iq
     logic[LSU_IQ_WTH-1:0]                   atrans_sel_idx;        
     logic                                   issue_is_empty;
 //======================================================================================================================
-// Issue Queen
+// Issue Queue
 //======================================================================================================================
     assign iq_is_full = {~del_flag_q,del_idx_q} == {ins_flag_q,ins_idx_q};
     assign iq_is_empty= { del_flag_q,del_idx_q} == {ins_flag_q,ins_idx_q};

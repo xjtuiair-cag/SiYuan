@@ -36,7 +36,7 @@ module sy_ppl_lsu_atrans
     input   logic                           rst_i,                      
     input   logic                           flush_i,
     // =====================================
-    // [From LSU Issue Queen]
+    // [From LSU Issue Queue]
     input   logic                           atrans_vld_i,
     output  logic                           atrans_rdy_o,
     input   logic[LSU_IQ_WTH-1:0]           atrans_iq_idx_i,
