@@ -118,7 +118,7 @@ module sy_ppl_csr_iq
     assign issue_empty= { issue_flag_q,issue_idx_q} == {ins_flag_q,ins_idx_q}; // there is no instr will be issue
     assign csr_dis__rdy_o = ~iq_is_full;
     assign ins_en = dis_csr__vld_i && csr_dis__rdy_o;
-    // insert new instr to issue queen
+    // insert new instr to issue queue
     always_comb begin : rs_state
         for (integer i=0; i<CSR_IQ_LEN; i=i+1) begin
             // awake

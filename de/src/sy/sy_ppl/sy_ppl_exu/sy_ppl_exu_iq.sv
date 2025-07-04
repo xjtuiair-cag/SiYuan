@@ -95,8 +95,8 @@ module sy_ppl_exu_iq
     assign iq_is_empty = (cnt_q == 0);
     assign exu_dis__rdy_o = ~iq_is_full;
     assign ins_en = dis_exu__vld_i && exu_dis__rdy_o;
-    // insert new instr to issue queen
-    // The IQ(Issue Queue) is a compressed issue queen
+    // insert new instr to issue queue
+    // The IQ(Issue Queue) is a compressed issue queue
     always_comb begin : rs_state
         for (integer i=0; i<EXU_IQ_LEN; i=i+1) begin
             // awake
