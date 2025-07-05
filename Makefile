@@ -181,6 +181,10 @@ build_sim_src: prepare_sim_src
 run_sim_test:
 	cd ${SIM_DIR} && make run_$(SIM_TYPE) TEST="$(TEST)" DV_HOME="$(DV_HOME)" DE_HOME="$(DE_HOME)" GUI="$(SIM_PARAM)"
 
+# only support riscv_tests and non-gui mode
+run_sim_regression:
+	cd ${SIM_DIR} && make run_$(SIM_TYPE)_regression TEST="$(TEST_REGRESSION)" DV_HOME="$(DV_HOME)" DE_HOME="$(DE_HOME)" 
+
 .PHONY: fpga
 
 clean: 
