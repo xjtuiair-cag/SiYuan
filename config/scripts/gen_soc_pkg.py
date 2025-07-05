@@ -67,7 +67,7 @@ if __name__ == "__main__":
         npu_loc = 0
 
     sys_bus_region = max(max(phri_slave_num, ctrl_slave_num),npu_slave_num)
-    output = "// Auto Generated, don't modify!!!\npackage sy_soc;\n"
+    output = "// Auto Generated, don't modify!!!\npackage sy_soc_pkg;\n"
     # add core num
     output += "parameter integer CORE_NUM = {};\n".format(core_num)
     output += '''
