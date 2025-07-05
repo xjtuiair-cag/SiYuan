@@ -125,9 +125,11 @@ else ifeq ($(SIM_TYPE),linux)
 else ifeq ($(SIM_TYPE),dma)
 	sim_src += dv/tb/axi_mem_dma.sv \
 				dv/tb/tb_sy_dma.sv 
-else # TODO
+else ifeq($(SIM_TYPE),riscv_test)# TODO
 	sim_src += dv/tb/axi_mem_riscv_tests.sv \
 				dv/tb/tb_sy_riscv_tests.sv 
+else 
+$(error Unknown sim type - please specify a supported sim type)
 endif
 
 sim_src := $(addprefix $(root-dir), $(sim_src))
