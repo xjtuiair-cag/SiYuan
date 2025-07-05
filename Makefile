@@ -70,7 +70,7 @@ ip := 	$(filter-out de/ip/fpu/src/fpnew_pkg.sv,$(wildcard de/ip/fpu/src/*.sv))  
 		de/ip/rv_plic/rtl/rv_plic_gateway.sv                                            		\
 		de/ip/rv_plic/rtl/rv_plic_target.sv                                            			\
 		de/ip/rv_plic/rtl/plic_top.sv                                            			 	\
-		$(filter-out de/ip/apb_uart/src/reg_uart_warp.sv,$(wildcard de/ip/apb_uart/src/*.sv))\
+		$(filter-out de/ip/apb_uart/src/reg_uart_warp.sv,$(wildcard de/ip/apb_uart/src/*.sv))	\
 		de/ip/algebra/div64x64_d20_wrap.sv														\
 		de/ip/algebra/mul64x64_d3_wrap.sv													
                                 	
@@ -99,6 +99,7 @@ src :=  $(wildcard de/src/sy/sy_ppl/sy_ppl_fronted/sy_ppl_br_pred/*.sv)         
 		$(wildcard de/src/sy/sy_mmu/*.sv)              									\
 		$(wildcard de/src/sy/sy_dma/*.sv)              									\
 		$(wildcard de/src/sy/*.sv)    
+src := $(addprefix $(root-dir), $(src))
 
 fpga_src := $(wildcard de/ip/bootrom_fpga/*.sv) 	
 ifeq ($(BOARD), genesys2)
@@ -115,28 +116,18 @@ sim_src := 	$(wildcard de/ip/bootrom_sim/*.sv)	\
 			de/ip/uart_sim/UART_rec.sv \
 			de/src/sy_soc_sim.sv	
 
-
 ifeq ($(SIM_TYPE),benos) 
 	sim_src += dv/tb/axi_mem_benos.sv \
 				dv/tb/tb_sy_benos.sv 
-else ifeq ($(SIM_TYPE),smp)
-	sim_src += dv/tb/axi_mem_smp.sv \
-				dv/tb/tb_swf_smp.sv \
-				de/rtl/src/swf_soc_smp.sv                              									       	
 else ifeq ($(SIM_TYPE),linux)
 	sim_src += dv/tb/axi_mem_linux.sv \
 				dv/tb/tb_sy_linux.sv 
 else ifeq ($(SIM_TYPE),dma)
 	sim_src += dv/tb/axi_mem_dma.sv \
 				dv/tb/tb_sy_dma.sv 
-else ifeq ($(SIM_TYPE),npu)
-	sim_src += dv/tb/axi_mem_npu.sv \
-				$(wildcard de/ip/hipu100_sim/*.sv) \
-				dv/tb/tb_sy_npu.sv 
 else # TODO
 	sim_src += dv/tb/axi_mem_riscv_tests.sv \
-				dv/tb/tb_swf_riscv_tests.sv \
-				de/rtl/src/swf_soc.sv                              									       	
+				dv/tb/tb_sy_riscv_tests.sv 
 endif
 
 sim_src := $(addprefix $(root-dir), $(sim_src))
@@ -147,7 +138,7 @@ endif
 
 gen_src : 
 	@echo "[Generate Source files] Generate sources"
-	cd ${SCRIPTS_DIR} && make all CONFIG_FILE=$(CONFIG_FILE) DTS_OUT_PATH=$(DTS_OUT_PATH) SOC_OUT_PATH=$(SOC_OUT_PATH) 
+	cd ${SCRIPTS_DIR} && make all CONFIG_FILE=$(CONFIG_FILE) DTS_OUT_PATH=$(DTS_OUT_PATH) SOC_OUT_PATH=$(SOC_OUT_PATH) TYPE=fpga
 	@echo "[Generate Source files Done]" 
 
 
@@ -179,6 +170,8 @@ prepare_sim_src: $(ip) $(sy_pkg) $(util) $(src) $(sim_src)
 	@echo $(src) 	        >> dv/vc/source_list.vc              
 	@echo $(sim_src)        >> dv/vc/source_list.vc          
 	@echo "[Build src file]" 
+	cd ${SCRIPTS_DIR} && make all CONFIG_FILE=$(CONFIG_FILE) DTS_OUT_PATH=$(DTS_OUT_PATH) SOC_OUT_PATH=$(SOC_OUT_PATH) TYPE=sim
+	cd $(DV_HOME)/tests/riscv-tests && make all 
 
 build_sim_src: prepare_sim_src
 	cd ${SIM_DIR} && make sy_sim_$(SIM_TYPE) DV_HOME="$(DV_HOME)" DE_HOME="$(DE_HOME)"
