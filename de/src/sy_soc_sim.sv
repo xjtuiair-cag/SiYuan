@@ -87,26 +87,40 @@ module sy_soc_sim
 //======================================================================================================================
 // Hart 
 //======================================================================================================================
-    generate 
-        genvar i;
-        for (i=0;i<CORE_NUM;i++) begin : gen_hart
-            localparam int unsigned LSB = 2*i;
-            localparam int unsigned MSB = 2*(i+1)-1;
-            sy_core # (
-                .HART_ID_WTH    (HART_ID_WTH),
-                .HART_ID        (i)
-            ) u_sy_inst(
-                .clk_i                      (clk_i      ),                          
-                .rst_i                      (rst_i      ),                          
-                .boot_addr_i                (boot_addr_i),          
-                .irq_i                      (irq_target[MSB:LSB]),    
-                .ipi_i                      (ipi[i]),    
-                .debug_req_i                (1'b0),          
-                .time_irq_i                 (timer_irq[i]),         
-                .master                     (sys_bus_master[i])
-            );       
-        end
-    endgenerate
+    // generate 
+    //     genvar i;
+    //     for (i=0;i<CORE_NUM;i++) begin : gen_hart
+    //         localparam int unsigned LSB = 2*i;
+    //         localparam int unsigned MSB = 2*(i+1)-1;
+    //         sy_core # (
+    //             .HART_ID_WTH    (HART_ID_WTH),
+    //             .HART_ID        (i)
+    //         ) u_sy_inst(
+    //             .clk_i                      (clk_i      ),                          
+    //             .rst_i                      (rst_i      ),                          
+    //             .boot_addr_i                (boot_addr_i),          
+    //             .irq_i                      (irq_target[MSB:LSB]),    
+    //             .ipi_i                      (ipi[i]),    
+    //             .debug_req_i                (1'b0),          
+    //             .time_irq_i                 (timer_irq[i]),         
+    //             .master                     (sys_bus_master[i])
+    //         );       
+    //     end
+    // endgenerate
+    sy_core # (
+        .HART_ID_WTH    (HART_ID_WTH),
+        .HART_ID        (0)
+    ) u_sy_inst(
+        .clk_i                      (clk_i      ),                          
+        .rst_i                      (rst_i      ),                          
+        .boot_addr_i                (boot_addr_i),          
+        .irq_i                      (irq_target[1:0]),    
+        .ipi_i                      (ipi[0]),    
+        .debug_req_i                (1'b0),          
+        .time_irq_i                 (timer_irq[0]),         
+        .master                     (sys_bus_master[0])
+    ); 
+
 //======================================================================================================================
 // System Bus
 //======================================================================================================================
