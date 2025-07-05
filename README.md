@@ -12,7 +12,7 @@ To build SiYuan, you need to install the following tools:
 
 2. `python3` : make sure `python` refers to python3 in your computer
 
-3. `riscv-none-elf-gcc` : follow this to build `riscv-none-elf-gcc`
+3. `riscv64-unknown-elf-gcc` 
 
 4. `Xilinx VC707 FPGA board`  or `Genesys 2 Kintex-7 FPGA Development Board`
 
@@ -59,6 +59,10 @@ sudo screen /dev/your_uart 115200
 ```
 
 Once the bitstream is burned into the FPGA, you will see linux booting message on the screen. Log in with `root` and no password required.
+
+# Simulation
+
+Follow the steps in [doc/simulation](https://github.com/xjtuiair-cag/SiYuan/blob/master/doc/sim_user_guide.md) to run simulation.
 
 # Dirctory Structure
 - config : configuration files for SiYuan.
