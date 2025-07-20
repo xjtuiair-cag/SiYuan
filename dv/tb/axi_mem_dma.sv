@@ -134,14 +134,14 @@ module axi_mem_sim# (
         #10;
         // sbi memory
         $readmemh("ddr.dat", rmt_mem_code);
-        $display("Memory contents:");
-        for (int i = 0; i < 20; i++)
-            $display("memory[%0d] = %h", i, rmt_mem_code[i]);
+        // $display("Memory contents:");
+        // for (int i = 0; i < 20; i++)
+        //     $display("memory[%0d] = %h", i, rmt_mem_code[i]);
         // sbi memory
         $readmemh("ddr0.dat", rmt_mem_ddr0);
-        $display("DDR0 Memory contents:");
-        for (int i = 0; i < 20; i++)
-            $display("memory[%0d] = %h", i, rmt_mem_ddr0[i]);
+        // $display("DDR0 Memory contents:");
+        // for (int i = 0; i < 20; i++)
+        //     $display("memory[%0d] = %h", i, rmt_mem_ddr0[i]);
     end
 
     // -----

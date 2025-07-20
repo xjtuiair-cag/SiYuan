@@ -31,7 +31,7 @@
 // Attention: This simulation module has not implemented all features of AXI protocol. It only support aligned access
 // with strobe, increasement burst type, and 4KiB access boundary.
 
-module axi_mem_riscv_tests# (
+module axi_mem_sim# (
     parameter ADDR_WTH = 32,
     parameter DATA_WTH = 256,
     parameter MEM_SIZE = 4*1024*1024,
@@ -325,4 +325,4 @@ module axi_mem_riscv_tests# (
     assign prb_waddr_off = waddr;
     assign prb_wr_type = wr_sbi_or_benos;
     assign prb_rd_type = rd_sbi_or_benos;
-endmodule : axi_mem_riscv_tests
+endmodule : axi_mem_sim

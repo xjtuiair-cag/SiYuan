@@ -128,15 +128,15 @@ module axi_mem_sim # (
         #10;
         // sbi memory
         $readmemh("mysbi.dat", rmt_mem_sbi);
-        $display("SBI Memory contents:");
-        for (int i = 0; i < 100; i++)
-            $display("memory[%0d] = %h", i, rmt_mem_sbi[i]);
+        // $display("SBI Memory contents:");
+        // for (int i = 0; i < 100; i++)
+        //     $display("memory[%0d] = %h", i, rmt_mem_sbi[i]);
 
         // benos memory
         $readmemh("benos.dat", rmt_mem_benos);
-        $display("benos Memory contents:");
-        for (int i = 0; i < 100; i++)
-            $display("memory[%0d] = %h", i, rmt_mem_benos[i]);
+        // $display("benos Memory contents:");
+        // for (int i = 0; i < 100; i++)
+        //     $display("memory[%0d] = %h", i, rmt_mem_benos[i]);
     end
 
     // -----

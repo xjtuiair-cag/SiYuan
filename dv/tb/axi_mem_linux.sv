@@ -126,9 +126,9 @@ module axi_mem_sim # (
         #10;
         // sbi memory
         $readmemh("bbl.dat", ddr);
-        $display("DDR Memory contents:");
-        for (int i = 0; i < 100; i++)
-            $display("memory[%0d] = %h", i, ddr[i]);
+        // $display("DDR Memory contents:");
+        // for (int i = 0; i < 100; i++)
+        //     $display("memory[%0d] = %h", i, ddr[i]);
    end
 
     // -----
