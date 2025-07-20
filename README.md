@@ -9,9 +9,12 @@ SiYuan support flexible configuration. You can modify the number of cores, add o
 
 Select a specific version of SiYuan from the [Release](https://github.com/xjtuiair-cag/SiYuan/releases) to download the pre-compiled bitstream file and the Linux image file `bbl.bin`. Then, follow the [SiYuan FPGA User Guide](https://github.com/xjtuiair-cag/SiYuan/blob/master/doc/SiYuan_FPGA_User_Guide.pdf) to start SiYuan on the FPGA and run Linux.
 
+# FPGA bitstream generation
+If you want to build SiYuan from scratch, please follow the steps in [fpga_build_user_guide](https://github.com/xjtuiair-cag/SiYuan/blob/master/doc/fpga_build_user_guide.md).
+
 # Simulation
 
-Follow the steps in [doc/simulation](https://github.com/xjtuiair-cag/SiYuan/blob/master/doc/sim_user_guide.md) to run simulation.
+Follow the steps in [simulation user guide](https://github.com/xjtuiair-cag/SiYuan/blob/master/doc/sim_user_guide.md) to run simulation.
 
 # Dirctory Structure
 - config : configuration files for SiYuan.
