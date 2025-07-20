@@ -66,11 +66,11 @@ ip := 	$(filter-out de/ip/fpu/src/fpnew_pkg.sv,$(wildcard de/ip/fpu/src/*.sv))  
 		$(filter-out de/ip/fpu/src/fpu_div_sqrt_mvp/hdl/defs_div_sqrt_mvp.sv,    				\
 		$(wildcard de/ip/fpu/src/fpu_div_sqrt_mvp/hdl/*.sv))                					\
 		$(wildcard de/ip/sram/*.sv)                                            					\
+		$(filter-out de/ip/apb_uart/src/reg_uart_wrap.sv,$(wildcard de/ip/apb_uart/src/*.sv))	\
 		de/ip/rv_plic/rtl/plic_regmap.sv                                            			\
 		de/ip/rv_plic/rtl/rv_plic_gateway.sv                                            		\
 		de/ip/rv_plic/rtl/rv_plic_target.sv                                            			\
 		de/ip/rv_plic/rtl/plic_top.sv                                            			 	\
-		$(filter-out de/ip/apb_uart/src/reg_uart_warp.sv,$(wildcard de/ip/apb_uart/src/*.sv))	\
 		de/ip/algebra/div64x64_d20_wrap.sv														\
 		de/ip/algebra/mul64x64_d3_wrap.sv													
                                 	
