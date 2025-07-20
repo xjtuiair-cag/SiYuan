@@ -125,7 +125,7 @@ else ifeq ($(SIM_TYPE),linux)
 else ifeq ($(SIM_TYPE),dma)
 	sim_src += dv/tb/axi_mem_dma.sv \
 				dv/tb/tb_sy_dma.sv 
-else ifeq($(SIM_TYPE),riscv_test)# TODO
+else ifeq ($(SIM_TYPE),riscv_test)# TODO
 	sim_src += dv/tb/axi_mem_riscv_tests.sv \
 				dv/tb/tb_sy_riscv_tests.sv 
 else 
@@ -175,7 +175,7 @@ prepare_sim_src: $(ip) $(sy_pkg) $(util) $(src) $(sim_src)
 	cd ${SCRIPTS_DIR} && make all CONFIG_FILE=$(CONFIG_FILE) DTS_OUT_PATH=$(DTS_OUT_PATH) SOC_OUT_PATH=$(SOC_OUT_PATH) TYPE=sim
 	cd $(DV_HOME)/tests/riscv-tests && make all 
 
-build_sim_src: prepare_sim_src
+build_sim_src:
 	cd ${SIM_DIR} && make sy_sim_$(SIM_TYPE) DV_HOME="$(DV_HOME)" DE_HOME="$(DE_HOME)"
 
 run_sim_test:
