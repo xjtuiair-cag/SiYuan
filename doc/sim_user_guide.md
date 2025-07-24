@@ -50,7 +50,7 @@ Before building SiYuan, please make sure that `VCS` and `Verdi` are properly ins
 
 Use the following command to set the test suite environment variable. Available options are: `riscv_test`, `benos`, `dma`, and `linux`.
 ```bash
-export SIM_TYPE = benos # riscv_test/benos/dma/linux are available
+export SIM_TYPE=benos # riscv_test/benos/dma/linux are available
 ```
 
 Then use the following command to build the SiYuan simulation environment.
