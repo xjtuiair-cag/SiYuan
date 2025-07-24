@@ -39,7 +39,7 @@ Before starting the tests, please ensure that you have installed the `riscv64-un
 
 Use the following command to generate the necessary test files.
 ```bash
-make prepare_sim_src CONFIG = sim.yaml
+make prepare_sim_src CONFIG=sim.yaml
 ```
 
 This command generates the `sy_soc_pkg` header file and compiles the relevant riscv test cases.
@@ -61,11 +61,11 @@ make build_sim_src
 ### 3.3 Run Test
 Use the following command to run a specific test case. 
 ```bash
-make run_sim_test TEST = benos_test_01 
+make run_sim_test TEST=benos_test_01 
 ```
 If you want to use `Verdi` to view simulation waveforms, please add the option `GUI=1`.
 ```bash
-make run_sim_test TEST = benos_test_01 GUI=1
+make run_sim_test TEST=benos_test_01 GUI=1
 ```
 
 `benos/dma/linux` test case are list in `dv/tests` and riscv test case are list in `dv/tests/riscv_test_list`
