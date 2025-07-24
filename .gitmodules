@@ -7,3 +7,7 @@
 [submodule "de/ip/ethernet"]
 	path = de/ip/ethernet
 	url = https://github.com/lowRISC/ariane-ethernet.git
+[submodule "de/ip/fpu"]
+	path = de/ip/fpu
+	url = https://github.com/2002liush/cvfpu.git
+	branch = SiYuan_fpu
