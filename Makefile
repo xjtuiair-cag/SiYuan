@@ -70,7 +70,7 @@ ip := 	$(filter-out de/ip/fpu/src/fpnew_pkg.sv,$(wildcard de/ip/fpu/src/*.sv))  
 		de/ip/rv_plic/rtl/rv_plic_gateway.sv                                            		\
 		de/ip/rv_plic/rtl/rv_plic_target.sv                                            			\
 		de/ip/rv_plic/rtl/plic_top.sv                                            			 	\
-		$(filter-out de/ip/apb_uart/src/reg_uart_warp.sv,$(wildcard de/ip/apb_uart/src/*.sv))	\
+		$(filter-out de/ip/apb_uart/src/reg_uart_wrap.sv,$(wildcard de/ip/apb_uart/src/*.sv))	\
 		de/ip/algebra/div64x64_d20_wrap.sv														\
 		de/ip/algebra/mul64x64_d3_wrap.sv													
                                 	
@@ -164,18 +164,18 @@ fpga_gui: $(sy_pkg) $(ip) $(util) $(src) $(fpga_src)
 	@echo "[FPGA] Generate Bitstream"
 	$(MAKE) -C fpga prj_gui BOARD=$(BOARD) XILINX_PART=$(XILINX_PART) XILINX_BOARD=$(XILINX_BOARD) CLK_PERIOD_NS="20"
 
-prepare_sim_src: $(ip) $(sy_pkg) $(util) $(src) $(sim_src)
+prepare_sim_src: 
+	@echo "[Build src file]" 
+	cd ${SCRIPTS_DIR} && make all CONFIG_FILE=$(CONFIG_FILE) DTS_OUT_PATH=$(DTS_OUT_PATH) SOC_OUT_PATH=$(SOC_OUT_PATH) TYPE=sim
+	cd $(DV_HOME)/tests/riscv-tests && make all 
+
+build_sim_src: $(ip) $(sy_pkg) $(util) $(src) $(sim_src)
 	@echo "[Prepare Source files]"
 	@echo $(sy_pkg)         >  dv/vc/source_list.vc     
 	@echo $(ip)        		>> dv/vc/source_list.vc     
 	@echo $(util)           >> dv/vc/source_list.vc       
 	@echo $(src) 	        >> dv/vc/source_list.vc              
 	@echo $(sim_src)        >> dv/vc/source_list.vc          
-	@echo "[Build src file]" 
-	cd ${SCRIPTS_DIR} && make all CONFIG_FILE=$(CONFIG_FILE) DTS_OUT_PATH=$(DTS_OUT_PATH) SOC_OUT_PATH=$(SOC_OUT_PATH) TYPE=sim
-	cd $(DV_HOME)/tests/riscv-tests && make all 
-
-build_sim_src:
 	cd ${SIM_DIR} && make sy_sim_$(SIM_TYPE) DV_HOME="$(DV_HOME)" DE_HOME="$(DE_HOME)"
 
 run_sim_test:
