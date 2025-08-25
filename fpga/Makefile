@@ -18,8 +18,8 @@ ips := xlnx_axi_clock_converter.xci  	\
 	   div64x64_d20_us.xci				\
 	   sdp_512x64sd1.xci						
 
+ips-target := $(addprefix $(ip-dir)/, $(basename $(ips)))
 ips := $(addprefix $(build-dir)/, $(ips))
-ips-target := $(join $(addsuffix /ip/, $(addprefix $(ip-dir)/, $(basename $(ips)))), $(ips))
 
 all: $(mcs)
 
@@ -37,7 +37,7 @@ $(ips): %.xci :
 	@cd $(ip-dir)/$(basename $(@F)) && make clean && make
 	@cp $(ip-dir)/$(basename $(@F))/ip/$(@F) $@
 
-clean_ip: $(ips)
+clean_ip: $(ips-target)
 	$(foreach dir, $(basename $(^F)), \
 		echo "Entering $(dir)"; \
 		$(MAKE) -C $(ip-dir)/$(dir) clean;) 
@@ -51,7 +51,7 @@ prj_gui: $(ips)
 program:
 	$(VIVADO) $(VIVADOFLAGS) -source xilinx_scripts/program.tcl
 
-clean:clean_ip
+clean: clean_ip
 	rm -rf $(build-dir)
 
 .PHONY:
