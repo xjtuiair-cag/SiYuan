@@ -127,12 +127,7 @@ run_riscv_test_regression:
 	python run_regression.py --test "${TEST}" --env "${RISCV_ENV}"		
 
 clean:
-	@rm -rf ${COMP_DIR};
-	@rm -rf ucli.key *.simv *.simv.*  DVEfiles csrc inter.vpd sy.fsdb vc_hdrs.h
-	@rm -rf dump* verdi* run.log runext uvm_comp.log comp*log  elab*log *.so *.txt
-	@rm -rf work.lib++
-	@rm -rf novas*
-	@rm -rf 64 AN.DB
+	@rm -rf ${SIMULATION_DIR};
 
 clean_test:
 	@rm -rf ${SIM_DIR}

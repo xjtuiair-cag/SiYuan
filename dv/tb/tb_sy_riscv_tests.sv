@@ -81,10 +81,10 @@ end
 initial begin
     res = $fopen("res.txt","w");
     forever begin
-        @(posedge clk iff (soc_inst.u_sy_inst.lsu_inst.lsu_dcache__vld_o == 1'b1 && 
-            soc_inst.u_sy_inst.lsu_inst.lsu_dcache__req_o.we == 1'b1 && 
-            soc_inst.u_sy_inst.lsu_inst.lsu_dcache__req_o.paddr == wb_addr));
-        if(soc_inst.u_sy_inst.lsu_inst.lsu_dcache__req_o.data == 64'b1) begin
+        @(posedge clk iff (soc_inst.u_sy_inst.u_sy_lsu.valid_q == 1'b1 && 
+            soc_inst.u_sy_inst.u_sy_lsu.is_store == 1'b1 && 
+            soc_inst.u_sy_inst.u_sy_lsu.addr_q == wb_addr));
+        if(soc_inst.u_sy_inst.u_sy_lsu.wdata_q == 64'b1) begin
             s = { "\n##########################################################\n"};
             s = {s, "#                ####    #    ####  ####                 #\n"};
             s = {s, "#                #  #   # #   #     #                    #\n"};
@@ -107,8 +107,8 @@ initial begin
             s = {s, "###################### TEST FAILED #######################\n"};
             s = {s, "##########################################################\n"};
             $display("%s",s);
-            $display("TEST FAIL: %h",soc_inst.u_sy_inst.lsu_inst.lsu_dcache__req_o.data);
-            $fwrite(res,"TEST FAIL: %h",soc_inst.u_sy_inst.lsu_inst.lsu_dcache__req_o.data);
+            $display("TEST FAIL: %h",soc_inst.u_sy_inst.u_sy_lsu.wdata_q);
+            $fwrite(res,"TEST FAIL: %h",soc_inst.u_sy_inst.u_sy_lsu.wdata_q);
         end
         $finish;
     end
