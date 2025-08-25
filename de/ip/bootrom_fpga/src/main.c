@@ -34,4 +34,6 @@ int main()
     print_uart("Welcome to SiYuan!\r\n");
     // copy linux image from SD card to DDR 
     copy();
+
+    return 0;
 }

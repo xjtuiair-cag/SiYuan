@@ -1,8 +1,8 @@
-CROSSCOMPILE ?= riscv-none-elf-
-CC = $(RISCV)/bin/${CROSSCOMPILE}gcc
+CROSSCOMPILE ?= riscv64-unknown-elf-
+CC = ${CROSSCOMPILE}gcc
 PYTHON=python
 
-CFLAGS = -Os -ggdb -march=rv64im_zicsr_zifencei -mabi=lp64 -Wall -mcmodel=medany -mexplicit-relocs -ffreestanding 
+CFLAGS = -Os -ggdb -march=rv64im -mabi=lp64 -Wall -mcmodel=medany -mexplicit-relocs -ffreestanding 
 CCASFLAGS = -mcmodel=medany -mexplicit-relocs
 LDFLAGS = -nostdlib -nodefaultlibs -nostartfiles
 
@@ -29,7 +29,7 @@ $(MAIN): sy.dtb $(OBJS_C) $(OBJS_S) linker.lds
 	dd if=$< of=$@ bs=128
 
 %.bin: %.elf
-	$(RISCV)/bin/$(CROSSCOMPILE)objcopy -O binary $< $@
+	$(CROSSCOMPILE)objcopy -O binary $< $@
 
 %.o: %.c
 	@$(CC) $(CFLAGS) $(INCLUDES) -c $<  -o $@

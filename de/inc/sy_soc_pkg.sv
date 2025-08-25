@@ -1,10 +1,10 @@
 // Auto Generated, don't modify!!!
-package sy_soc;
+package sy_soc_pkg;
 parameter integer CORE_NUM = 1;
 
     parameter UART_EN = 1;
-    parameter SPI_EN = 1;
-    parameter GPIO_EN = 1;
+    parameter SPI_EN = 0;
+    parameter GPIO_EN = 0;
     parameter DMA_EN = 1;
     parameter NPU_EN = 0;
     parameter ETHERNET_EN = 0;
@@ -82,8 +82,8 @@ parameter integer CORE_NUM = 1;
     
     // peripheral bus
     parameter UART  = 0;
-    parameter SPI   = 1;
-    parameter GPIO  = 2;
+    parameter SPI   = 0;
+    parameter GPIO  = 0;
     parameter ETHERNET = 0;   
     
     // NPU bus
@@ -102,7 +102,7 @@ parameter integer CORE_NUM = 1;
     parameter CTRL_BUS_SRC_MSB   = CTRL_BUS_SRC_LSB + 1;
     
     parameter PHRI_BUS_REGION    = 1;     
-    parameter PHRI_BUS_SLAVE_NUM = 3;
+    parameter PHRI_BUS_SLAVE_NUM = 1;
     parameter PHRI_BUS_SRC_LSB   = SYS_BUS_SRC_MSB;
     parameter PHRI_BUS_SRC_MSB   = PHRI_BUS_SRC_LSB + 1;
     
@@ -113,7 +113,7 @@ parameter integer CORE_NUM = 1;
     
     parameter logic [SYS_BUS_SLAVE_NUM-1:0][SYS_BUS_REGION-1:0][ADDR_WIDTH-1:0]sys_bus_start_addr = {
     {RESERVED_START,NPU_DRAM_START,DMA_START},
-{UART_START,SPI_START,GPIO_START},
+{RESERVED_START,RESERVED_START,UART_START},
 {ROM_START,PLIC_START,CLINT_START},
 {RESERVED_START,RESERVED_START,DRAM_START}
 
@@ -121,7 +121,7 @@ parameter integer CORE_NUM = 1;
     
     parameter logic [SYS_BUS_SLAVE_NUM-1:0][SYS_BUS_REGION-1:0][ADDR_WIDTH-1:0]sys_bus_end_addr = {
     {RESERVED_END,NPU_DRAM_END,DMA_END},
-{UART_END,SPI_END,GPIO_END},
+{RESERVED_END,RESERVED_END,UART_END},
 {ROM_END,PLIC_END,CLINT_END},
 {RESERVED_END,RESERVED_END,DRAM_END}
 
@@ -129,7 +129,7 @@ parameter integer CORE_NUM = 1;
     
     parameter logic [SYS_BUS_SLAVE_NUM-1:0][SYS_BUS_REGION-1:0]sys_bus_region_en = {
     {1'b0,1'b1,1'b1},
-{1'b1,1'b1,1'b1},
+{1'b0,1'b0,1'b1},
 {1'b1,1'b1,1'b1},
 {1'b0,1'b0,1'b1}
 
@@ -146,15 +146,15 @@ parameter integer CORE_NUM = 1;
      };
     
     parameter logic [PHRI_BUS_SLAVE_NUM-1:0][PHRI_BUS_REGION-1:0][ADDR_WIDTH-1:0]phri_bus_start_addr = {
-    {GPIO_START,SPI_START,UART_START}
+    {UART_START}
 
     };
     parameter logic [PHRI_BUS_SLAVE_NUM-1:0][PHRI_BUS_REGION-1:0][ADDR_WIDTH-1:0]phri_bus_end_addr = {
-    {GPIO_END,SPI_END,UART_END}
+    {UART_END}
 
     };
     parameter logic [PHRI_BUS_SLAVE_NUM-1:0][PHRI_BUS_REGION-1:0]phri_bus_region_en = {
-    {1'b1,1'b1,1'b1}
+    {1'b1}
 
     };
     

@@ -1,6 +1,7 @@
 CONFIG_FILE = base 
 DTS_OUT_PATH = none
 SOC_OUT_PATH = none
+TYPE ?= fpga
 all: dts plic soc
 
 dts:
@@ -16,5 +17,5 @@ plic:
 soc:
 	@echo "Generate Soc file"
 	python gen_soc_pkg.py -f $(CONFIG_FILE) -o $(SOC_OUT_PATH)
-	cd ../../de/ip/bootrom_fpga && make clean && make all
+	cd ../../de/ip/bootrom_$(TYPE) && make clean && make all
 	@echo "Soc file Generation Done"

@@ -1,0 +1,23 @@
+#!/bin/bash
+# run simulation with tcname and mode
+# usage:
+# gui mode: 	   bash rung_tc tc_name seed log
+# batch mode:	   bash run_tc  tc_name seed log
+ 
+tcname=$1
+if [ $2 ]; then
+    seed=$2
+else
+    seed=0
+fi
+if [ $3 ]; then
+    log=$3
+else
+    log=log;
+fi
+
+casetype=run;
+
+cd ${PRJ_HOME}/work/simulation/
+echo "perl tcconfig.pl $casetype $tcname $seed $log";
+perl tcconfig.pl $casetype $tcname $seed $log

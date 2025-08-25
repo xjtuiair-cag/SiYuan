@@ -1,0 +1,12 @@
+rv64ud-p-structural
+rv64ud-p-fcvt_w
+rv64ud-p-recoding
+rv64ud-p-fmin
+rv64ud-p-fcmp
+rv64ud-p-fadd
+rv64ud-p-fmadd
+rv64ud-p-fdiv
+rv64ud-p-fclass
+rv64ud-p-move
+rv64ud-p-ldst
+rv64ud-p-fcvt
