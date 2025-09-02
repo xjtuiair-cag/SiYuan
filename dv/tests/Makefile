@@ -34,7 +34,18 @@ gen_verilog_data:
 %.co: src/%.c
 	$(CC) -g -c $< -o $@ -march=rv64imafd -mabi=lp64 
 
-#$(CC) -c $< -o $@ -march=rv32ifd -mabi=ilp32
+tests := benos_test_01 \
+       	 benos_test_02 \
+       	 benos_test_03 \
+       	 benos_test_04 \
+       	 benos_test_05 \
+       	 dma_test_01  \
+		 linux_test_01 
 
-clean:
-	rm -rf $(obj) output/*
+clean_tests: $(tests)
+	$(foreach dir, $(basename $(^F)), \
+		echo "Entering $(dir)"; \
+		$(MAKE) -C $(dir) clean;) 
+
+clean: clean_tests
+	cd riscv-tests && make clean

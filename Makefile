@@ -186,4 +186,5 @@ clean:
 	cd de/ip/bootrom_fpga && make clean
 	cd de/ip/bootrom_sim && make clean
 	cd dv/simulation && make clean
+	cd dv/tests && make clean
 	cd fpga && make clean
