@@ -351,4 +351,5 @@ assign bp_btb_update_npc = AWTH'(0);
 
 // synopsys translate_off
 // synopsys translate_on
+
 endmodule : sy_ppl_fet

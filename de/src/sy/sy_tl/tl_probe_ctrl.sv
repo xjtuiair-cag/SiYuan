@@ -520,16 +520,4 @@ module tl_probe_ctrl #(
     end
 
 
-(* mark_debug = "true" *) logic         prb_cc_a_valid;
-(* mark_debug = "true" *) logic         prb_cc_a_ready;
-(* mark_debug = "true" *) logic[2:0]    prb_cc_a_source;
-(* mark_debug = "true" *) logic[31:0]   prb_cc_a_addr;
-(* mark_debug = "true" *) state_e   prb_cc_state;
-
-assign prb_cc_a_valid = inp_A_valid_i;
-assign prb_cc_a_ready = inp_A_ready_o;
-assign prb_cc_a_source = inp_A_bits_i.source[2:0];
-assign prb_cc_a_addr = inp_A_bits_i.address[31:0];
-assign prb_cc_state = state_q;
-
 endmodule

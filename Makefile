@@ -86,6 +86,7 @@ src :=  $(wildcard de/src/sy/sy_ppl/sy_ppl_fet/sy_ppl_br_pred/*.sv)             
 		$(wildcard de/src/sy/sy_tl/tl2amba/*.sv)              							\
 		$(wildcard de/src/sy/sy_tl/*.sv)              									\
 		$(wildcard de/src/sy/sy_cache/sy_dcache/*.sv)              						\
+		$(wildcard de/src/sy/sy_cache/sy_L2_cache/*.sv)              					\
 		$(wildcard de/src/sy/sy_cache/*.sv)              								\
 		$(wildcard de/src/sy/sy_clint/*.sv)              								\
 		$(wildcard de/src/sy/sy_npu/*.sv)              									\

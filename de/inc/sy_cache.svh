@@ -44,6 +44,28 @@
     parameter DCACHE_DATA_WTH          = $clog2(DCACHE_DATA_SIZE);     // 3
     parameter DCACHE_DATA_MSB          = DCACHE_DATA_LSB + DCACHE_DATA_WTH;   // 3
 
+    parameter L2_CACHE_SET_SIZE        = 64;   // L2 cache contains 64 sets
+    parameter L2_CACHE_BLOCK_SIZE      = 256; // 256 Byte
+    parameter L2_CACHE_DATA_SIZE       = 8;   // Data Bus is 8 Byte 
+    parameter L2_CACHE_WAY_NUM         = 8;
+    parameter L2_CACHE_WAY_WTH         = $clog2(L2_CACHE_WAY_NUM);
+
+    parameter L2_CACHE_TAG_LSB         = 14;
+    parameter L2_CACHE_TAG_WTH         = 18;
+    parameter L2_CACHE_TAG_MSB         = L2_CACHE_TAG_LSB + L2_CACHE_TAG_WTH;
+
+    parameter L2_CACHE_SET_LSB         = 8;           
+    parameter L2_CACHE_SET_WTH         = $clog2(L2_CACHE_SET_SIZE);    // 6
+    parameter L2_CACHE_SET_MSB         = L2_CACHE_SET_LSB + L2_CACHE_SET_WTH;  // 14
+
+    parameter L2_CACHE_BLOCK_LSB       = 0;           
+    parameter L2_CACHE_BLOCK_WTH       = $clog2(L2_CACHE_BLOCK_SIZE); // 8
+    parameter L2_CACHE_BLOCK_MSB       = L2_CACHE_BLOCK_LSB + L2_CACHE_BLOCK_WTH;  
+
+    parameter L2_CACHE_DATA_LSB        = 0;          
+    parameter L2_CACHE_DATA_WTH        = $clog2(L2_CACHE_DATA_SIZE);     // 3
+    parameter L2_CACHE_DATA_MSB        = L2_CACHE_DATA_LSB + L2_CACHE_DATA_WTH;   // 3
+
 
     localparam int unsigned ICACHE_INDEX_WIDTH = 12;  // in bit
     localparam int unsigned ICACHE_TAG_WIDTH   = 44;  // in bit
@@ -120,6 +142,33 @@
     typedef struct packed {
       logic [DCACHE_DATA_SIZE*8-1:0]      rd_data; 
     } data_rsp_t;
+
+    typedef struct packed {
+      logic                               we;
+      logic [L2_CACHE_WAY_NUM-1:0]        way_en; 
+      logic [L2_CACHE_TAG_LSB-1:0]        idx;
+      logic                               tag_valid;
+      logic [L2_CACHE_TAG_WTH-1:0]        tag;
+      logic                               dirty;
+    } L2_tag_req_t;
+
+    typedef struct packed {
+      logic [L2_CACHE_WAY_NUM-1:0]        tag_valid; 
+      logic [L2_CACHE_WAY_NUM-1:0][L2_CACHE_TAG_WTH-1:0] tag;
+      logic [L2_CACHE_WAY_NUM-1:0]        dirty;  
+    } L2_tag_rsp_t;
+
+    typedef struct packed {
+      logic                               we;
+      logic [L2_CACHE_WAY_NUM-1:0]        way_en;
+      logic [L2_CACHE_TAG_LSB-1:0]        idx;
+      logic [L2_CACHE_DATA_SIZE*8-1:0]    wr_data;
+    } L2_data_req_t;
+
+    typedef struct packed {
+      logic [L2_CACHE_WAY_NUM-1:0][L2_CACHE_DATA_SIZE*8-1:0]    rd_data; 
+    } L2_data_rsp_t;
+
 
     typedef struct packed {
         logic                     fetch_valid;     // address translation valid
@@ -365,3 +414,4 @@
     endcase
     return out;
   endfunction : paddrSizeAlign
+

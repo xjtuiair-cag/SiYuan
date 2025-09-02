@@ -31,6 +31,7 @@ read_ip ../xilinx_ip/xlnx_clk_gen/ip/xlnx_clk_gen.xci
 read_ip ../xilinx_ip/div64x64_d20_s/ip/div64x64_d20_s.xci
 read_ip ../xilinx_ip/div64x64_d20_us/ip/div64x64_d20_us.xci
 read_ip ../xilinx_ip/sdp_512x64sd1/ip/sdp_512x64sd1.xci
+read_ip ../xilinx_ip/sdp_2048x64sd1/ip/sdp_2048x64sd1.xci
 # read_ip ../xilinx_ip/fifo_64to32/ip/fifo_64to32.xci
 # read_ip ../xilinx_ip/fifo_cmd_1/ip/fifo_cmd_1.xci
 # read_ip ../xilinx_ip/fifo_data/ip/fifo_data.xci

@@ -356,4 +356,8 @@ end
 
 // synopsys translate_off
 // synopsys translate_on
+(* mark_debug = "true" *) ctrl_fsm_e prb_ppl_ctrl_state;
+
+assign prb_ppl_ctrl_state = cur_state;
+
 endmodule : sy_ppl_ctrl

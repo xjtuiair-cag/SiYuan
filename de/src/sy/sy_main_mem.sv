@@ -141,32 +141,65 @@ module sy_main_mem
         .oup_D_bits_i                (oup_D_bits )
   );
 
-  TL2AXI4 #(
-      .AXI_ID (0)
-  ) tl2axi_inst(
-        .clk_i                        (clk_i), 
-        .rst_i                        (rst_i),         
-        .TL_A_valid_i                 (oup_A_valid),                 
-        .TL_A_ready_o                 (oup_A_ready),                 
-        .TL_A_bits_i                  (oup_A_bits ),               
-        .TL_D_valid_o                 (oup_D_valid),                 
-        .TL_D_ready_i                 (oup_D_ready),                 
-        .TL_D_bits_o                  (oup_D_bits ),               
+  sy_L2_cache L2_cache_inst (
+    .clk_i                   (clk_i),        
+    .rst_i                   (rst_i),        
 
-        .AXI_AW_valid_o               (oup_axi_aw_valid_o),                  
-        .AXI_AW_ready_i               (oup_axi_aw_ready_i),                           
-        .AXI_AW_bits_o                (oup_axi_aw_bits_o ),                 
-        .AXI_AR_valid_o               (oup_axi_ar_valid_o),                  
-        .AXI_AR_ready_i               (oup_axi_ar_ready_i),                           
-        .AXI_AR_bits_o                (oup_axi_ar_bits_o ),                 
-        .AXI_W_valid_o                (oup_axi_w_valid_o ),                 
-        .AXI_W_ready_i                (oup_axi_w_ready_i ),                          
-        .AXI_W_bits_o                 (oup_axi_w_bits_o  ),                
-        .AXI_R_valid_i                (oup_axi_r_valid_i ),                 
-        .AXI_R_ready_o                (oup_axi_r_ready_o ),                 
-        .AXI_R_bits_i                 (oup_axi_r_bits_i  ),                 
-        .AXI_B_valid_i                (oup_axi_b_valid_i ),                 
-        .AXI_B_ready_o                (oup_axi_b_ready_o ),                 
-        .AXI_B_bits_i                 (oup_axi_b_bits_i  )                 
-  );
+    .TL_A_valid_i            (oup_A_valid),               
+    .TL_A_ready_o            (oup_A_ready),               
+    .TL_A_bits_i             (oup_A_bits ),              
+
+    .TL_D_valid_o            (oup_D_valid),               
+    .TL_D_ready_i            (oup_D_ready),               
+    .TL_D_bits_o             (oup_D_bits ),              
+
+    .AXI_AW_valid_o          (oup_axi_aw_valid_o),                 
+    .AXI_AW_ready_i          (oup_axi_aw_ready_i),                          
+    .AXI_AW_bits_o           (oup_axi_aw_bits_o ),                
+
+    .AXI_AR_valid_o          (oup_axi_ar_valid_o),                 
+    .AXI_AR_ready_i          (oup_axi_ar_ready_i),                          
+    .AXI_AR_bits_o           (oup_axi_ar_bits_o ),                
+
+    .AXI_W_valid_o           (oup_axi_w_valid_o),                
+    .AXI_W_ready_i           (oup_axi_w_ready_i),                         
+    .AXI_W_bits_o            (oup_axi_w_bits_o ),               
+
+    .AXI_R_valid_i           (oup_axi_r_valid_i),                
+    .AXI_R_ready_o           (oup_axi_r_ready_o),                
+    .AXI_R_bits_i            (oup_axi_r_bits_i ),                
+
+    .AXI_B_valid_i           (oup_axi_b_valid_i),                
+    .AXI_B_ready_o           (oup_axi_b_ready_o),                
+    .AXI_B_bits_i            (oup_axi_b_bits_i )
+  ); 
+  // TL2AXI4 #(
+  //     .AXI_ID (0)
+  // ) tl2axi_inst(
+  //       .clk_i                        (clk_i), 
+  //       .rst_i                        (rst_i),         
+  //       .TL_A_valid_i                 (oup_A_valid),                 
+  //       .TL_A_ready_o                 (oup_A_ready),                 
+  //       .TL_A_bits_i                  (oup_A_bits ),               
+  //       .TL_D_valid_o                 (oup_D_valid),                 
+  //       .TL_D_ready_i                 (oup_D_ready),                 
+  //       .TL_D_bits_o                  (oup_D_bits ),               
+
+  //       .AXI_AW_valid_o               (oup_axi_aw_valid_o),                  
+  //       .AXI_AW_ready_i               (oup_axi_aw_ready_i),                           
+  //       .AXI_AW_bits_o                (oup_axi_aw_bits_o ),                 
+  //       .AXI_AR_valid_o               (oup_axi_ar_valid_o),                  
+  //       .AXI_AR_ready_i               (oup_axi_ar_ready_i),                           
+  //       .AXI_AR_bits_o                (oup_axi_ar_bits_o ),                 
+  //       .AXI_W_valid_o                (oup_axi_w_valid_o ),                 
+  //       .AXI_W_ready_i                (oup_axi_w_ready_i ),                          
+  //       .AXI_W_bits_o                 (oup_axi_w_bits_o  ),                
+  //       .AXI_R_valid_i                (oup_axi_r_valid_i ),                 
+  //       .AXI_R_ready_o                (oup_axi_r_ready_o ),                 
+  //       .AXI_R_bits_i                 (oup_axi_r_bits_i  ),                 
+  //       .AXI_B_valid_i                (oup_axi_b_valid_i ),                 
+  //       .AXI_B_ready_o                (oup_axi_b_ready_o ),                 
+  //       .AXI_B_bits_i                 (oup_axi_b_bits_i  )                 
+  // );
+
 endmodule
