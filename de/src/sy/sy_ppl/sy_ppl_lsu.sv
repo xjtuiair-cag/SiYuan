@@ -251,4 +251,21 @@ end
 
 // synopsys translate_off
 // synopsys translate_on
+// (* mark_debug = "true" *) logic [63:0] prb_lsu_vaddr;
+// (* mark_debug = "true" *) logic [63:0] prb_lsu_paddr;
+// (* mark_debug = "true" *) logic [1:0]  prb_lsu_size;
+// (* mark_debug = "true" *) logic [63:0] prb_lsu_rdata;
+// (* mark_debug = "true" *) logic [63:0] prb_lsu_wdata;
+// (* mark_debug = "true" *) logic        prb_lsu_valid;
+// (* mark_debug = "true" *) state_e prb_lsu_state;
+
+// assign prb_lsu_vaddr  = addr_q;
+// assign prb_lsu_paddr  = paddr_q;
+// assign prb_lsu_size  = size_q;
+// assign prb_lsu_rdata = dcache_lsu__rsp_i.rdata;
+// assign prb_lsu_wdata = wdata_q;
+// assign prb_lsu_valid = valid_q;
+// assign prb_lsu_state = state_q;
+
+
 endmodule : sy_ppl_lsu

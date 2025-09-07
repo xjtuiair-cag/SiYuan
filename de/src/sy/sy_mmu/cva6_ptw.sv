@@ -333,8 +333,8 @@ module cva6_ptw
     end
 
     // sequential process
-    always_ff @(posedge clk_i or negedge rst_ni) begin
-        if (~rst_ni) begin
+    always_ff @(`DFF_CR(clk_i,rst_ni)) begin
+        if (`DFF_IS_R(rst_ni)) begin
             state_q            <= IDLE;
             is_instr_ptw_q     <= 1'b0;
             ptw_lvl_q          <= LVL1;
@@ -362,5 +362,23 @@ module cva6_ptw
 //======================================================================================================================
 // Signals for simulation or probes
 //======================================================================================================================
+
+// (* mark_debug = "true" *) logic[2:0] prb_ptw_state;
+// (* mark_debug = "true" *) logic      prb_ptw_dcache_req;
+
+// assign prb_ptw_state = state_q;
+// assign prb_ptw_dcache_req = req_port_o.req;
+
+// (* mark_debug = "true" *) logic      prb_ptw_ic_acc;
+// (* mark_debug = "true" *) logic      prb_ptw_ic_hit;
+// (* mark_debug = "true" *) logic      prb_ptw_ic_en;
+// (* mark_debug = "true" *) logic      prb_ptw_dc_access;
+// (* mark_debug = "true" *) logic      prb_ptw_dc_en;
+
+// assign prb_ptw_ic_acc = itlb_access_i;
+// assign prb_ptw_ic_hit = itlb_hit_i;
+// assign prb_ptw_dc_access = dtlb_access_i;
+// assign prb_ptw_ic_en = enable_translation_i;
+// assign prb_ptw_dc_en = en_ld_st_translation_i;
 
 endmodule

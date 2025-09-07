@@ -924,4 +924,12 @@ module sy_ppl_csr_regfile
 
 // synopsys translate_off
 // synopsys translate_on
+
+(* mark_debug = "true" *) logic prb_csr_wfi;
+(* mark_debug = "true" *) logic prb_csr_wakeup;
+(* mark_debug = "true" *) logic prb_csr_timer;
+assign prb_csr_wfi = wfi_q;
+assign prb_csr_wakeup = !wfi_q;
+assign prb_csr_timer = timer_irq_i;
+
 endmodule : sy_ppl_csr_regfile

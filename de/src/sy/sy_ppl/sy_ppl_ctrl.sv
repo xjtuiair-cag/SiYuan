@@ -101,6 +101,7 @@ module sy_ppl_ctrl
 //======================================================================================================================
 // Parameters
 //======================================================================================================================
+parameter STALL_CYCLE = 100;
 
 typedef enum logic[4:0] {
     FSM_RESET = 0,
@@ -111,7 +112,8 @@ typedef enum logic[4:0] {
     FSM_INVALID_IC = 5,
     FSM_SLEEP = 6,
     FSM_FLUSH_TLB = 7,
-    FSM_INVALID_DC = 8
+    FSM_INVALID_DC = 8,
+    FSM_STALL = 9
 } ctrl_fsm_e;
 
 //======================================================================================================================
@@ -140,6 +142,7 @@ logic                               ctrl_invld_ic_req_q;
 logic                               ctrl_invld_dc_req_q;
 logic                               ctrl_flush_tlb_req_q;
 logic                               flush_ppl;
+logic[31:0]                         cnt_d,cnt_q;
 
 //======================================================================================================================
 // Instance
@@ -160,6 +163,8 @@ always_comb begin
     next_state = cur_state;
     // The privilege, mode, and current PC of Sy core
     cur_pc = cur_pc_q;
+
+    cnt_d = cnt_q;
     // output signals
     // -- Drive the pipelien to work
     ctrl_fet__act_o = 1'b0;
@@ -228,7 +233,9 @@ always_comb begin
                     next_state = FSM_INVALID_IC;
                     ctrl_invld_ic_req = 1'b0;
                 end else if(ctrl_invld_dc_req) begin
+                    // next_state = FSM_STALL;
                     next_state = FSM_INVALID_DC;
+                    cnt_d = '0;
                     ctrl_invld_dc_req = 1'b0;
                 end else if(ctrl_flush_tlb_req) begin
                     next_state = FSM_FLUSH_TLB;
@@ -294,6 +301,12 @@ always_comb begin
             ppl_tlb_flush_o = 1'b1; 
             next_state = FSM_PROC_EVENT;
         end
+        FSM_STALL: begin
+            cnt_d = cnt_q + 1;   
+            if (cnt_q == STALL_CYCLE) begin
+                next_state = FSM_PROC_EVENT;
+            end
+        end
         default:;
     endcase
     // If CPU receives reset signal, the FSM jump to POWER_ON state immediately.
@@ -337,6 +350,7 @@ always_ff @(`DFF_CR(clk_i, rst_i)) begin
         ctrl_invld_dc_req_q <= `TCQ 1'b0;
         ctrl_flush_tlb_req_q <= `TCQ 1'b0;
         ctrl_debug_req_q <= `TCQ 1'b0;
+        cnt_q            <= '0;
     end else begin
         cur_state <= `TCQ next_state;
         cur_pc_q <= `TCQ cur_pc;
@@ -347,6 +361,7 @@ always_ff @(`DFF_CR(clk_i, rst_i)) begin
         ctrl_invld_dc_req_q <= `TCQ ctrl_invld_dc_req;
         ctrl_flush_tlb_req_q <= `TCQ ctrl_flush_tlb_req;
         ctrl_debug_req_q <= `TCQ ctrl_debug_req;
+        cnt_q           <= cnt_d;
     end
 end
 
@@ -356,8 +371,41 @@ end
 
 // synopsys translate_off
 // synopsys translate_on
-(* mark_debug = "true" *) ctrl_fsm_e prb_ppl_ctrl_state;
+// (* mark_debug = "true" *) ctrl_fsm_e prb_ppl_ctrl_state;
 
-assign prb_ppl_ctrl_state = cur_state;
+// assign prb_ppl_ctrl_state = cur_state;
+
+// (* mark_debug = "true" *) logic prb_ppl_if_act;
+// (* mark_debug = "true" *) logic prb_ppl_id_act;
+// (* mark_debug = "true" *) logic prb_ppl_exe_act;
+// (* mark_debug = "true" *) logic prb_ppl_mem_act;
+// (* mark_debug = "true" *) logic prb_ppl_wb_act;
+// (* mark_debug = "true" *) logic prb_ppl_mul_act;
+// (* mark_debug = "true" *) logic prb_ppl_div_act;
+
+// assign prb_ppl_if_act       = fet_ctrl__if0_act_i;
+// assign prb_ppl_id_act       = fet_ctrl__id0_act_i;
+// assign prb_ppl_exe_act      = dec_ctrl__ex0_act_i;
+// assign prb_ppl_mem_act      = alu_ctrl__mem_act_i;
+// assign prb_ppl_wb_act       = alu_ctrl__wb_act_i;
+// assign prb_ppl_mul_act      = mdu_ctrl__mul_act_i;
+// assign prb_ppl_div_act      = mdu_ctrl__div_act_i;
+
+// logic [31:0]    pause_cnt;
+
+// always_ff @(`DFF_CR(clk_i, rst_i)) begin
+//     if(`DFF_IS_R(rst_i)) begin
+//         pause_cnt <= '0;
+//     end else begin
+//         if (cur_state == FSM_PAUSE) begin
+//             pause_cnt <= pause_cnt + 1;
+//         end else begin
+//             pause_cnt <= '0;
+//         end
+//     end
+// end
+
+// (* mark_debug = "true" *) logic[31:0] prb_ppl_pause_cnt;
+// assign prb_ppl_pause_cnt = pause_cnt;
 
 endmodule : sy_ppl_ctrl

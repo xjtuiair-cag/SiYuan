@@ -310,7 +310,12 @@ module sy_icache
           end
           state_d = IDLE;
         end
+      // if (flush_i) begin
+      //   flush_done_o = 1'b1;
+      // end
+      //   state_d = IDLE;
       end
+      
       // killed miss, wait until memory responds and go back to idle
       KILL_REFILL: begin  
         icache_D_ready_o = 1'b1;
@@ -417,8 +422,8 @@ module sy_icache
     );
     
     // tag array
-    always_ff @(posedge clk_i or negedge rst_i)begin
-      if(!rst_i) begin
+    always_ff @(`DFF_CR(clk_i,rst_i))begin
+      if(`DFF_IS_R(rst_i)) begin
         tag_array[i] <= '0;
       // write tag
       end else if(cache_tag_wr && (i==rpl_way)) begin
@@ -427,16 +432,16 @@ module sy_icache
     end
 
     // read tag
-    always_ff @(posedge clk_i or negedge rst_i)begin
-      if(!rst_i) begin
+    always_ff @(`DFF_CR(clk_i,rst_i))begin
+      if(`DFF_IS_R(rst_i)) begin
         cache_rtag[i] <= '0;
       end else if(cache_ren) begin
         cache_rtag[i] <= tag_array[i][cache_set_inx];
       end
     end
     // valid bit array
-    always_ff @(posedge clk_i or negedge rst_i) begin
-      if(!rst_i) begin
+    always_ff @(`DFF_CR(clk_i,rst_i)) begin
+      if(`DFF_IS_R(rst_i)) begin
         cl_valid[i] <= '0;  
       end else if(flush_i) begin
         cl_valid[i] <= '0;
@@ -448,8 +453,8 @@ module sy_icache
       end
     end
     // read valid bit
-    always_ff @(posedge clk_i or negedge rst_i)begin
-      if(!rst_i) begin
+    always_ff @(`DFF_CR(clk_i,rst_i))begin
+      if(`DFF_IS_R(rst_i)) begin
         cache_rvalid[i] <= '0;
       end else if(cache_ren) begin
         cache_rvalid[i] <= cl_valid[i][cache_set_inx];
@@ -457,8 +462,8 @@ module sy_icache
     end
   end
 
-  always_ff @(posedge clk_i or negedge rst_i) begin : p_regs
-    if(!rst_i) begin
+  always_ff @(`DFF_CR(clk_i,rst_i)) begin : p_regs
+    if(`DFF_IS_R(rst_i)) begin
       vaddr_q          <= '0;
       paddr_q          <= '0;
       state_q          <= IDLE;
@@ -485,4 +490,24 @@ module sy_icache
 
 // synopsys translate_off
 // synopsys translate_on
+
+// (* mark_debug = "true" *) state_e prb_icache_state;
+// // (* mark_debug = "true" *) logic[63:0] prb_icache_vaddr;
+// // (* mark_debug = "true" *) logic[63:0] prb_icache_paddr;
+// (* mark_debug = "true" *) logic       prb_icache_A_valid;
+// (* mark_debug = "true" *) logic       prb_icache_A_ready;
+
+// assign prb_icache_state     = state_q;
+// // assign prb_icache_vaddr     = vaddr_q;
+// // assign prb_icache_paddr     = paddr_q;
+// assign prb_icache_A_valid   = icache_A_valid_o;
+// assign prb_icache_A_ready   = icache_A_ready_i;
+
+// (* mark_debug = "true" *) logic       prb_icache_mmu_valid;
+// (* mark_debug = "true" *) logic       prb_mmu_icache_rsp;
+// (* mark_debug = "true" *) logic       prb_mmu_icache_ex_valid;
+// assign prb_icache_mmu_valid = icache_mmu__req_o.fetch_req;
+// assign prb_mmu_icache_rsp   = mmu_icache__rsp_i.fetch_valid;
+// assign prb_mmu_icache_ex_valid = mmu_icache__rsp_i.fetch_exception.valid;
+
 endmodule

@@ -27,7 +27,9 @@
 // -FHDR------------------------------------------------------------------------
 
 
-module TL2AXI4 #(
+module TL2AXI4 
+    import sy_pkg::*;
+#(
     parameter       AXI_ID = 0
 )(
     input  logic                            clk_i,
@@ -260,8 +262,8 @@ module TL2AXI4 #(
 //======================================================================================================================
 // Register
 //======================================================================================================================
-    always_ff @(posedge clk_i or negedge rst_i) begin : p_regs
-        if(!rst_i) begin
+    always_ff @(`DFF_CR(clk_i,rst_i)) begin : p_regs
+        if(`DFF_IS_R(rst_i)) begin
             cnt_q               <= '0; 
             aw_done_q           <= '0;       
             r_hold_q            <= '0;

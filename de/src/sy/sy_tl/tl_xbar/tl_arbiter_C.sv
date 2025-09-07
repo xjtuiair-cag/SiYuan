@@ -103,8 +103,8 @@ module tl_arbiter_C
 
   assign inp_ready_o = ready_after_filter & valid_after_filter;
 
-  always_ff @(posedge clk_i or negedge rst_i) begin
-    if (!rst_i) begin
+  always_ff @(`DFF_CR(clk_i,rst_i)) begin
+    if (`DFF_IS_R(rst_i)) begin
       state_q         <= IDLE;
       allow_pass_q    <= {MASTER_NUM{1'b1}};
       counter_q       <= 0;

@@ -188,8 +188,8 @@ module sy_clint #(
     );
 
     // Registers
-    always_ff @(posedge clk_i or negedge rst_i) begin
-        if (~rst_i) begin
+    always_ff @(`DFF_CR(clk_i,rst_i)) begin
+        if (`DFF_IS_R(rst_i)) begin
             mtime_q    <= 64'b0;
             mtimecmp_q <= 'b0;
             msip_q     <= '0;

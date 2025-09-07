@@ -180,8 +180,8 @@ module sy_dcache_mem
 //======================================================================================================================
 // Tag array
 //======================================================================================================================
-    always_ff @(posedge clk_i or negedge rst_i)begin
-      if (!rst_i) begin
+    always_ff @(`DFF_CR(clk_i,rst_i))begin
+      if (`DFF_IS_R(rst_i)) begin
         tag_array[i] <= '0;
       // write tag
       end else if (tag_array_wen[i]) begin
@@ -190,8 +190,8 @@ module sy_dcache_mem
     end
 
     // read tag
-    always_ff @(posedge clk_i or negedge rst_i)begin
-      if(!rst_i) begin
+    always_ff @(`DFF_CR(clk_i,rst_i))begin
+      if(`DFF_IS_R(rst_i)) begin
         tag_rd_data[i] <= '0;
       end else if(tag_array_ren[i]) begin
         tag_rd_data[i] <= tag_array[i][tag_array_raddr];
@@ -200,8 +200,8 @@ module sy_dcache_mem
 //======================================================================================================================
 // State array
 //======================================================================================================================
-    always_ff @(posedge clk_i or negedge rst_i)begin
-      if (!rst_i) begin
+    always_ff @(`DFF_CR(clk_i,rst_i))begin
+      if (`DFF_IS_R(rst_i)) begin
         for (integer j=0;j<DCACHE_SET_SIZE;j++) begin
           state_array[i][j] <= Nothing;
         end
@@ -217,8 +217,8 @@ module sy_dcache_mem
     end
 
     // read state
-    always_ff @(posedge clk_i or negedge rst_i)begin
-      if(!rst_i) begin
+    always_ff @(`DFF_CR(clk_i,rst_i))begin
+      if(`DFF_IS_R(rst_i)) begin
         state_rd_data[i] <= Nothing;
       end else if(tag_array_ren[i]) begin
         state_rd_data[i] <= state_array[i][tag_array_raddr];
@@ -229,8 +229,8 @@ module sy_dcache_mem
 //======================================================================================================================
 // Valid bit array
 //======================================================================================================================
-    always_ff @(posedge clk_i or negedge rst_i) begin
-      if(!rst_i) begin
+    always_ff @(`DFF_CR(clk_i,rst_i)) begin
+      if(`DFF_IS_R(rst_i)) begin
         cl_valid[i] <= '0;  
       end else if(flush_i) begin
         cl_valid[i] <= '0;
@@ -240,8 +240,8 @@ module sy_dcache_mem
       end
     end
     // read valid bit
-    always_ff @(posedge clk_i or negedge rst_i)begin
-      if(!rst_i) begin
+    always_ff @(`DFF_CR(clk_i,rst_i))begin
+      if(`DFF_IS_R(rst_i)) begin
         valid_bit[i] <= 1'b0;
       end else if(tag_array_ren[i]) begin
         valid_bit[i] <= cl_valid[i][tag_array_raddr];
@@ -255,8 +255,8 @@ module sy_dcache_mem
 // registers
 //======================================================================================================================
 
-    always_ff @(posedge clk_i or negedge rst_i)begin
-      if(!rst_i) begin
+    always_ff @(`DFF_CR(clk_i,rst_i))begin
+      if(`DFF_IS_R(rst_i)) begin
         data_rd_way_idx_dly <= '0;
       end else begin
         data_rd_way_idx_dly <= data_rd_way_idx;

@@ -135,6 +135,7 @@ module cva6_mmu
     ) i_ptw (
         .clk_i                  ( clk_i                 ),
         .rst_ni                 ( rst_ni                ),
+        .flush_i                ( flush_i               ),
         .ptw_active_o           ( ptw_active            ),
         .walking_instr_o        ( walking_instr         ),
         .ptw_error_o            ( ptw_error             ),
@@ -157,25 +158,6 @@ module cva6_mmu
 
         .*
      );
-
-    // ila_1 i_ila_1 (
-    //     .clk(clk_i), // input wire clk
-    //     .probe0({req_port_o.address_tag, req_port_o.address_index}),
-    //     .probe1(req_port_o.data_req), // input wire [63:0]  probe1
-    //     .probe2(req_port_i.data_gnt), // input wire [0:0]  probe2
-    //     .probe3(req_port_i.data_rdata), // input wire [0:0]  probe3
-    //     .probe4(req_port_i.data_rvalid), // input wire [0:0]  probe4
-    //     .probe5(ptw_error), // input wire [1:0]  probe5
-    //     .probe6(update_vaddr), // input wire [0:0]  probe6
-    //     .probe7(update_ptw_itlb.valid), // input wire [0:0]  probe7
-    //     .probe8(update_ptw_dtlb.valid), // input wire [0:0]  probe8
-    //     .probe9(dtlb_lu_access), // input wire [0:0]  probe9
-    //     .probe10(lsu_vaddr_i), // input wire [0:0]  probe10
-    //     .probe11(dtlb_lu_hit), // input wire [0:0]  probe11
-    //     .probe12(itlb_lu_access), // input wire [0:0]  probe12
-    //     .probe13(icache_areq_i.fetch_vaddr), // input wire [0:0]  probe13
-    //     .probe14(itlb_lu_hit) // input wire [0:0]  probe13
-    // );
 
     //-----------------------
     // Instruction Interface
@@ -228,12 +210,11 @@ module cva6_mmu
                     // throw a page fault
                     icache_areq_o.fetch_exception = {INSTR_PAGE_FAULT, icache_areq_i.fetch_vaddr, 1'b1};
                 end
-            end else
             // ---------
             // ITLB Miss
             // ---------
             // watch out for exceptions happening during walking the page table
-            if (ptw_active && walking_instr) begin
+            end else if (ptw_active && walking_instr) begin
                 icache_areq_o.fetch_valid = ptw_error;
                 icache_areq_o.fetch_exception = {INSTR_PAGE_FAULT, {25'b0, update_vaddr}, 1'b1};
             end
@@ -338,8 +319,8 @@ module cva6_mmu
     // ----------
     // Registers
     // ----------
-    always_ff @(posedge clk_i or negedge rst_ni) begin
-        if (~rst_ni) begin
+    always_ff @(`DFF_CR(clk_i,rst_ni)) begin
+        if (`DFF_IS_R(rst_ni)) begin
             lsu_vaddr_q      <= '0;
             lsu_req_q        <= '0;
             misaligned_ex_q  <= '0;
@@ -359,4 +340,14 @@ module cva6_mmu
             dtlb_is_1G_q     <=  dtlb_is_1G_n;
         end
     end
+
+// (* mark_debug = "true" *) logic      prb_mmu_ic_req;
+// (* mark_debug = "true" *) logic      prb_mmu_ic_hit;
+// (* mark_debug = "true" *) logic      prb_mmu_ic_rsp;
+
+// assign prb_mmu_ic_req = icache_areq_i.fetch_req;
+// assign prb_mmu_ic_hit = itlb_lu_hit;
+// assign prb_mmu_ic_rsp = icache_areq_o.fetch_valid;
+
+
 endmodule

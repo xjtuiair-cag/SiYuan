@@ -727,8 +727,8 @@ module sy_dcache_missunit
 //======================================================================================================================
 // registers
 //======================================================================================================================
-  always_ff @(posedge clk_i or negedge rst_i) begin : p_regs
-    if(!rst_i) begin
+  always_ff @(`DFF_CR(clk_i,rst_i)) begin : p_regs
+    if(`DFF_IS_R(rst_i)) begin
       state_q                   <= IDLE;
       probe_state_q             <= PROBE_IDLE;
       probe_permission_q        <= tl_pkg::toT;
@@ -776,6 +776,11 @@ module sy_dcache_missunit
       unlock_probe_dly1         <= unlock_probe;
     end
   end
+
+(* mark_debug = "true" *) state_e prb_dcache_missunit_state;
+(* mark_debug = "true" *) logic[63:0] prb_dcache_missunit_addr;
+assign prb_dcache_missunit_state = state_q;
+assign prb_dcache_missunit_addr = req_bits_q.addr;
 
 //======================================================================================================================
 // Signals for simulation or probes

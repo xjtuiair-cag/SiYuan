@@ -343,6 +343,8 @@ module tl_probe_ctrl #(
             cnt3_d = HART_NUM - 1;
         end else if (dma_set) begin
             cnt3_d = HART_NUM;   
+        end else if (probeAck_done && probeAckData_done) begin
+            cnt3_d = cnt3_q - 2;   
         end else if (probeAck_done || probeAckData_done) begin
             cnt3_d = cnt3_q - 1; 
         end 
@@ -483,8 +485,8 @@ module tl_probe_ctrl #(
 //======================================================================================================================
 // Register
 //======================================================================================================================
-    always_ff @(posedge clk_i or negedge rst_i) begin : p_regs
-        if(!rst_i) begin
+    always_ff @(`DFF_CR(clk_i,rst_i)) begin : p_regs
+        if(`DFF_IS_R(rst_i)) begin
             state_q             <= IDLE;
             probe_todo_q        <= '0;
             req_hart_q          <= '0;
@@ -519,5 +521,17 @@ module tl_probe_ctrl #(
         end
     end
 
+// (* mark_debug = "true" *) state_e       prb_cc_ctrl_state;
+// (* mark_debug = "true" *) logic[7:0]    prb_cc_ctrl_cnt;
+// (* mark_debug = "true" *) logic         prb_proeb_ack_done;
+// (* mark_debug = "true" *) logic         prb_proeb_data_done;
+// (* mark_debug = "true" *) logic[5:0]    prb_cc_ctrl_D_source;
+// (* mark_debug = "true" *) logic[5:0]    prb_cc_ctrl_A_source;
+// assign prb_cc_ctrl_state = state_q;
+// assign prb_cc_ctrl_cnt = cnt3_q;
+// assign prb_proeb_ack_done = probeAck_done;
+// assign prb_proeb_data_done = probeAckData_done;
+// assign prb_cc_ctrl_A_source = oup_A_bits_o.source;
+// assign prb_cc_ctrl_D_source = oup_D_bits_i.source;
 
 endmodule

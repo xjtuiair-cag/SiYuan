@@ -26,7 +26,9 @@
 // Other :
 // -FHDR------------------------------------------------------------------------
 
-module TL2APB#(
+module TL2APB
+    import sy_pkg::*;
+#(
     parameter       APB_ADDR_WIDTH = 32,
     parameter       APB_DATA_WIDTH = 32
 )(
@@ -158,8 +160,8 @@ module TL2APB#(
 //======================================================================================================================
 // Register
 //======================================================================================================================
-    always_ff @(posedge clk_i or negedge rst_i) begin : p_regs
-        if(!rst_i) begin
+    always_ff @(`DFF_CR(clk_i,rst_i)) begin : p_regs
+        if(`DFF_IS_R(rst_i)) begin
             a_enable_q      <= '0;
             pause_req_dly   <= '0;
             d_size_q        <= tl_pkg::size_t'('0);

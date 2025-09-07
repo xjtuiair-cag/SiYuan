@@ -226,6 +226,8 @@ module sy_L2_cache_ctrl
     .lookup_lru_way_o     (lookup_lru_way)
   );
 
+  assign update_lru_set = addr_q[L2_CACHE_SET_MSB-1:L2_CACHE_SET_LSB];
+
   // find invalid cache line
   lzc #(
     .WIDTH ( L2_CACHE_WAY_NUM)
@@ -277,6 +279,8 @@ module sy_L2_cache_ctrl
     axi_w_last      = 1'b0;
     axi_or_tl       = 1'b0;
     TL_D_opcode     = tl_pkg::AccessAck;
+    update_lru      = 1'b0;
+    update_lru_way  = '0;
     unique case (state_q)
         // wait for an incoming request
         IDLE: begin
@@ -305,6 +309,8 @@ module sy_L2_cache_ctrl
           cl_tag_d      = cl_tag;
           // cache hit
           if (|cache_hit) begin 
+            update_lru = 1'b1; // update lru registers when cache hit
+            update_lru_way = hit_way_idx_d;
             if (tl_opcode_q == tl_pkg::PutFullData) begin
               state_d = WRITE_DATA;
               data_req_o        = 1'b1; // write first data to L2 cache
@@ -417,6 +423,8 @@ module sy_L2_cache_ctrl
               tag_req_o = 1'b1;
               cache_tag_we = 1'b1;
               state_d = REPLAY_REQ;
+              update_lru = 1'b1;
+              update_lru_way = rpl_way;
             end
           end
         end

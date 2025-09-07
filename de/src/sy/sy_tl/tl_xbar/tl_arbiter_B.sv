@@ -103,8 +103,8 @@ module tl_arbiter_B
     .oup_ready_i  (oup_ready_i)
   );
 
-  always_ff @(posedge clk_i or negedge rst_i) begin
-    if (!rst_i) begin
+  always_ff @(`DFF_CR(clk_i,rst_i)) begin
+    if (`DFF_IS_R(rst_i)) begin
       state_q         <= IDLE;
       allow_pass_q    <= {SLAVE_NUM{1'b1}};
       counter_q       <= 0;

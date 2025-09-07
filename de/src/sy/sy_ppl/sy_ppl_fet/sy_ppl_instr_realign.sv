@@ -97,8 +97,8 @@ module sy_ppl_instr_realign
          end
     end
 
-    always_ff @(posedge clk_i or negedge rst_ni) begin
-        if (~rst_ni) begin
+    always_ff @(`DFF_CR(clk_i,rst_ni)) begin
+        if (`DFF_IS_R(rst_ni)) begin
             unaligned_q         <= 1'b0;
             unaligned_address_q <= '0;
             unaligned_instr_q   <= '0;

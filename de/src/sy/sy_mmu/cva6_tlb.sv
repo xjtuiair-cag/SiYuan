@@ -203,8 +203,8 @@ module cva6_tlb
     end
 
     // sequential process
-    always_ff @(posedge clk_i or negedge rst_ni) begin
-        if(~rst_ni) begin
+    always_ff @(`DFF_CR(clk_i,rst_ni)) begin
+        if(`DFF_IS_R(rst_ni)) begin
             tags_q      <= '{default: 0};
             content_q   <= '{default: 0};
             plru_tree_q <= '{default: 0};

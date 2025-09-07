@@ -610,8 +610,8 @@ assign alu_csr__sret_o = sys_instr_avail && wb_sys_opcode == SYS_OP_SRET;
 assign alu_csr__dret_o = sys_instr_avail && wb_sys_opcode== SYS_OP_DRET;
 assign alu_ctrl__sfence_vma_o = sys_instr_avail && wb_sys_opcode== SYS_OP_SFENCE_VMA;
 assign alu_ctrl__fencei_en_o = sys_instr_avail && wb_sys_opcode == SYS_OP_FENCEI;
-// assign alu_ctrl__fence_en_o = (wb_act && wb_instr_cls == instr_cls_mem) && (wb_dmem_opcode == mem_op_fence);
-assign alu_ctrl__fence_en_o = 1'b0; 
+assign alu_ctrl__fence_en_o = (wb_act && wb_instr_cls == INSTR_CLS_MEM) && (wb_dmem_opcode == MEM_OP_FENCE);
+// assign alu_ctrl__fence_en_o = 1'b0; 
 //======================================================================================================================
 // FPU interface 
 //======================================================================================================================

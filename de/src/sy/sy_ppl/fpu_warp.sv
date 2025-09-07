@@ -453,8 +453,8 @@ module fpu_wrap (
     end
 
     // Buffer register and FSM state holding
-    always_ff @(posedge clk_i or negedge rst_ni) begin : fp_hold_reg
-      if(~rst_ni) begin
+    always_ff @(`DFF_CR(clk_i,rst_ni)) begin : fp_hold_reg
+      if(`DFF_IS_R(rst_ni)) begin
         state_q       <= READY;
         operand_a_q   <= '0;
         operand_b_q   <= '0;

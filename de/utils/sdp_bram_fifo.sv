@@ -143,10 +143,5 @@ module sdp_bram_fifo #(
             cnt_q           <= cnt_d;
         end
     end
-(* mark_debug = "true" *) logic[9:0]    prb_fifo_waddr;
-(* mark_debug = "true" *) logic[9:0]    prb_fifo_raddr;
-
-assign prb_fifo_waddr      = data_ram_waddr;           
-assign prb_fifo_raddr      = data_ram_raddr;           
 
 endmodule 

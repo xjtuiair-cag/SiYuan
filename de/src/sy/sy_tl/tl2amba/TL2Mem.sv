@@ -26,7 +26,9 @@
 // Other :
 // -FHDR------------------------------------------------------------------------
 
-module TL2Mem#(
+module TL2Mem
+    import sy_pkg::*;
+#(
     parameter       ADDR_WIDTH = 64,
     parameter       DATA_WIDTH = 64 
 )(
@@ -128,8 +130,8 @@ module TL2Mem#(
 //======================================================================================================================
 // Register
 //======================================================================================================================
-    always_ff @(posedge clk_i or negedge rst_i) begin : p_regs
-        if(!rst_i) begin
+    always_ff @(`DFF_CR(clk_i,rst_i)) begin : p_regs
+        if(`DFF_IS_R(rst_i)) begin
             state_q     <= IDLE;
             source_q    <= tl_pkg::source_t'(0);
             address_q   <= '0;

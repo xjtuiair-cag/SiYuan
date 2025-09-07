@@ -177,7 +177,8 @@ assign if0_act = if0_act_unkilled && !if0_kill;
 assign if0_avail = if0_act && !if0_stall && buffer_is_not_full;
 assign if0_accpt = !if0_act || if0_avail;
 
-assign fet_ctrl__if0_act_o = if0_act || !icache_fet__drsp_i.ready;
+// assign fet_ctrl__if0_act_o = if0_act || !icache_fet__drsp_i.ready;
+assign fet_ctrl__if0_act_o = if0_act;
 
 assign ppl_imem__rvld = ctrl_fet__act_i && if0_accpt && buffer_is_not_full;
 
@@ -351,5 +352,16 @@ assign bp_btb_update_npc = AWTH'(0);
 
 // synopsys translate_off
 // synopsys translate_on
+
+(* mark_debug = "true" *) logic         prb_ppl_id_act;
+(* mark_debug = "true" *) logic[31:0]   prb_ppl_id_pc;
+(* mark_debug = "true" *) logic[31:0]   prb_ppl_id_instr;
+
+assign prb_ppl_id_act = id0_act;
+assign prb_ppl_id_pc = fet_dec__id0_pc_o;
+assign prb_ppl_id_instr = fet_dec__id0_instr_o;
+
+(* mark_debug = "true" *) logic         prb_ppl_halt;
+assign prb_ppl_halt = halt_i;
 
 endmodule : sy_ppl_fet

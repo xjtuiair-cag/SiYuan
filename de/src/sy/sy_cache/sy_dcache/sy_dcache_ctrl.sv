@@ -548,8 +548,8 @@ module sy_dcache_ctrl
 //======================================================================================================================
 // registers
 //======================================================================================================================
-  always_ff @(posedge clk_i or negedge rst_i) begin : p_regs
-    if(!rst_i) begin
+  always_ff @(`DFF_CR(clk_i,rst_i)) begin : p_regs
+    if(`DFF_IS_R(rst_i)) begin
       state_q           <= IDLE;
       arbiter_sel_q     <= '0; 
       addr_tag_q        <= '0; 
@@ -585,6 +585,9 @@ module sy_dcache_ctrl
       update_way_idx_q  <= update_way_idx_d;
     end
   end
+
+(* mark_debug = "true" *) state_e prb_dcache_ctrl_state;
+assign prb_dcache_ctrl_state = state_q;
 
 //======================================================================================================================
 // Signals for simulation or probes
