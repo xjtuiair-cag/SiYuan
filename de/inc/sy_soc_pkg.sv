@@ -1,6 +1,6 @@
 // Auto Generated, don't modify!!!
 package sy_soc_pkg;
-parameter integer CORE_NUM = 2;
+parameter integer CORE_NUM = 1;
 
     parameter UART_EN = 1;
     parameter SPI_EN = 1;

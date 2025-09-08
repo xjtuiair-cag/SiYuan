@@ -28,7 +28,7 @@
 
 package dbg_pkg;
 
-`include "glb_def.svh"
+// `include "glb_def.svh"
 
 // parameter NrHarts = 1;
 

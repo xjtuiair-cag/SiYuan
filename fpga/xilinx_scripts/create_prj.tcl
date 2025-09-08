@@ -62,13 +62,11 @@ set_property top sy_soc_fpga [current_fileset]
 #########
 
 if {$::env(BOARD) eq "vc707"} {
-    read_verilog -sv {../../de/inc/vc707.svh ../../de/inc/registers.svh ../../de/inc/glb_def.svh ../../de/inc/sy_cache.svh  
-    ../../de/inc/sy_mmu.svh ../../de/inc/sy_ovall.svh ../../de/inc/sy_ppl.svh}
+    read_verilog -sv {../../de/inc/vc707.svh ../../de/inc/registers.svh}
     set file "vc707.svh"
     set registers "registers.svh"
 } elseif {$::env(BOARD) eq "genesys2"} {
-    read_verilog -sv {../../de/inc/genesys2.svh ../../de/inc/registers.svh ../../de/inc/glb_def.svh ../../de/inc/sy_cache.svh  
-    ../../de/inc/sy_mmu.svh ../../de/inc/sy_ovall.svh ../../de/inc/sy_ppl.svh}
+    read_verilog -sv {../../de/inc/genesys2.svh ../../de/inc/registers.svh}
     set file "genesys2.svh"
     set registers "registers.svh"
 } else {
