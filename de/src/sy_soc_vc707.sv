@@ -27,7 +27,7 @@
 // -FHDR------------------------------------------------------------------------
 
 module sy_soc_fpga
-    import sy_soc::*;
+    import sy_soc_pkg::*;
 (
     input  logic         sys_clk_p   ,
     input  logic         sys_clk_n   ,
