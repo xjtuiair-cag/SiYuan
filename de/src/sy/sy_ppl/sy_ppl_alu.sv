@@ -90,6 +90,7 @@ module sy_ppl_alu
     //! DEC module send decoded instruction to ALU module if current instruction belongs to algebra, logic, branch, and
     //! load/store class.
     input   logic                           dec_alu__ex0_avail_i,
+    input   logic                           dec_alu__ex0_act_i,
     input   instr_cls_e                     dec_alu__instr_cls_i,
     input   logic[1:0]                      dec_alu__stage_act_i,
     input   logic[AWTH-1:0]                 dec_alu__npc_i,
@@ -123,10 +124,12 @@ module sy_ppl_alu
     input   logic[FLEN-1:0]                 dec_alu__fp_result_i,
     input   logic[4:0]                      dec_alu__fp_status_i, 
 
-    //modified by liushenghuan
     input   exception_t                     dec_alu__exceptions_i,
     input   logic                           dec_alu__only_word_i,
     input   logic                           dec_alu__is_compressed_i,
+
+    output  logic                           alu_dec__tlb_miss_block_o,           
+    output  logic                           alu_dec__dc_rsp_block_o,
     // block mgr
     output  logic                           alu_dec__mem_blk_en_o,
     output  logic[4:0]                      alu_dec__mem_blk_idx_o,
@@ -152,17 +155,20 @@ module sy_ppl_alu
     output  logic[4:0]                      alu_fp_reg__rdst_idx_o,
     output  logic[DWTH-1:0]                 alu_fp_reg__rdst_data_o,
     // =====================================
-    // [to LSU]
-    output  logic                           ppl_dmem__vld_o,
-    output  logic[AWTH-1:0]                 ppl_dmem__addr_o,
-    output  logic[DWTH-1:0]                 ppl_dmem__wdata_o,
-    output  size_e                          ppl_dmem__size_o,
-    output  mem_opcode_e                    ppl_dmem__opcode_o,
-    output  amo_t                           ppl_dmem__amo_opcode_o,
-    output  logic                           ppl_dmem__kill_o,
-    input   logic                           dmem_ppl__hit_i,
-    input   logic[DWTH-1:0]                 dmem_ppl__rdata_i,
-    input   exception_t                     dmem_ppl__exception_i
+    // [address translation request]
+    output  logic                           ppl_mmu__req_o,
+    output  logic[63:0]                     ppl_mmu__vaddr_o,
+    output  logic                           ppl_mmu__is_store_o,
+    input   logic                           mmu_ppl__dtlb_hit_i,
+    input   logic                           mmu_ppl__valid_i,
+    input   logic[63:0]                     mmu_ppl__paddr_i,
+    input   exception_t                     mmu_ppl__ex_i,
+    // =====================================
+    // [to D Cache]
+    output  logic                           ppl_dmem__req_o,
+    input   logic                           dmem_ppl__rsp_i,
+    output  dcache_req_t                    ppl_dmem__req_bits_o,
+    input   dcache_rsp_t                    dmem_ppl__rsp_bits_i
 );
 
 //======================================================================================================================
@@ -190,6 +196,7 @@ logic[DWTH-1:0]                     ex0_dmem_operand;
 mem_opcode_e                        ex0_dmem_opcode;
 logic[DWTH/8-1:0]                   ex0_dmem_wstrb;
 logic[DWTH-1:0]                     ex0_rdst_from_alsc;
+exception_t                         ex0_exception; 
 logic                               sys_instr_avail;
 logic                               mem_stall;
 logic                               mem_kill;
@@ -199,6 +206,11 @@ logic                               mem_avail;
 logic                               mem_accpt;
 logic[1:0]                          mem_stage_act;
 logic[AWTH-1:0]                     mem_pc;
+logic                               mem_access_dc;
+logic                               mem_access_dc_done;  
+logic                               mem_dc_hit_dly;
+logic                               mem_first_cycle;
+logic[DWTH-1:0]                     mem_rd_data_temp;    
 logic[AWTH-1:0]                     mem_npc;
 logic[IWTH-1:0]                     mem_instr;
 logic                               mem_rdst_en;
@@ -229,7 +241,7 @@ logic                               mem_fp_rdst_en;
 logic                               mem_csr_blk_en;
 logic                               mem_lsu_blk_en;
 
-exception_t                         mem_exceptions;
+exception_t                         mem_exceptions,mem_exceptions_q;
 exception_t                         mem_ex_from_alu;
 mem_opcode_e                        mem_dmem_opcode;
 // logic[DWTH-1:0]                     mem_rdst_from_alsc;
@@ -249,6 +261,7 @@ logic                               wb_accpt;
 logic[AWTH-1:0]                     wb_pc;
 logic[AWTH-1:0]                     wb_npc;
 logic[IWTH-1:0]                     wb_instr;
+logic                               wb_dc_hit;
 logic[1:0]                          wb_stage_act;
 logic                               wb_rdst_en;
 rdst_src_e                          wb_rdst_src_sel;
@@ -279,6 +292,12 @@ logic                               bp0_fpu_en;
 logic                               bp1_fpu_en;
 logic                               mem_single_prec;
 logic                               wb_single_prec;
+
+logic [2:0]                         offset;
+logic                               is_store;
+logic                               is_amo;
+logic                               is_load;
+logic                               misaligned;
 //======================================================================================================================
 // Instance
 //======================================================================================================================
@@ -375,24 +394,75 @@ assign btb_update_o.target_address = ex0_true_npc;
 
 assign ex0_rdst_from_alsc = (dec_alu__rdst_src_sel_i == RDST_SRC_FPU) ? dec_alu__fp_result_i : als_out; 
 
+// send address translation request to MMU 
+// if TLB hit, hit siganl will be back at the same clock cycle
+assign ppl_mmu__req_o = dec_alu__ex0_act_i && mem_accpt && (dec_alu__instr_cls_i == INSTR_CLS_MEM) && (dec_alu__mem_opcode_i != MEM_OP_FENCE);
+// assign ppl_mmu__req_o = dec_alu__ex0_act_i && mem_accpt && (dec_alu__instr_cls_i == INSTR_CLS_MEM) && (dec_alu__mem_opcode_i != MEM_OP_FENCE);
+assign ppl_mmu__vaddr_o = {ex0_dmem_addr >> 2, 2'h0};
+assign ppl_mmu__is_store_o = (ex0_dmem_opcode == MEM_OP_STORE) 
+                          || (ex0_dmem_opcode == MEM_OP_ST_FP) 
+                          || (ex0_dmem_opcode == MEM_OP_SC) 
+                          || (ex0_dmem_opcode == MEM_OP_AMO);
+
+// if dtlb is miss, wait until ptw is done or exception is happen
+assign alu_dec__tlb_miss_block_o = ppl_mmu__req_o && !mmu_ppl__dtlb_hit_i && !(mmu_ppl__valid_i && mmu_ppl__ex_i.valid) && !misaligned;
+// request to dcache could be refused 
+assign alu_dec__dc_rsp_block_o = ppl_dmem__req_o && !dmem_ppl__rsp_i && !(mmu_ppl__valid_i && mmu_ppl__ex_i.valid) && !misaligned;
+
+// exception in ex0 stage
+always_comb begin
+    // exception from MMU 
+    ex0_exception = mmu_ppl__ex_i; 
+    if (dec_alu__exceptions_i.valid) begin
+        // exception from decode stage
+        ex0_exception = dec_alu__exceptions_i;
+    // misaligned access
+    end else if (ppl_mmu__req_o && misaligned) begin
+        ex0_exception.valid = 1'b1;
+        ex0_exception.cause = is_store ? ST_ADDR_MISALIGNED : LD_ADDR_MISALIGNED;
+        ex0_exception.tval  = ex0_dmem_addr;
+    end
+end
+
 // suppose when mdu send wb busy signal, at the moment lsu send hit signal
 // we must guarantee that we won't send valid signal to lsu until mdu deassert busy signal
-assign ex0_dmem_vld = dec_alu__ex0_avail_i && (dec_alu__instr_cls_i == INSTR_CLS_MEM) && (dec_alu__mem_opcode_i != MEM_OP_FENCE);
-
 assign ex0_dmem_addr = als_out;
 assign ex0_dmem_wdata = dec_alu__st_data_i;
 assign ex0_dmem_size  = dec_alu__size_i;
 assign ex0_dmem_amo_opcode = dec_alu__amo_opcode_i;
 assign ex0_dmem_opcode = dec_alu__mem_opcode_i;
 
+// assign ppl_dmem__vld_o = (dmem_recall) ? mem_dmem_vld : ex0_dmem_vld;
+// assign ppl_dmem__addr_o = (dmem_recall) ? mem_dmem_addr: ex0_dmem_addr;
+// assign ppl_dmem__wdata_o = (dmem_recall) ? mem_dmem_wdata : ex0_dmem_wdata;
+// assign ppl_dmem__size_o = (dmem_recall) ? mem_dmem_size: ex0_dmem_size;
+// assign ppl_dmem__opcode_o = (dmem_recall) ? mem_dmem_opcode : ex0_dmem_opcode;
+// assign ppl_dmem__amo_opcode_o = (dmem_recall) ? mem_dmem_amo_opcode : ex0_dmem_amo_opcode;
+// assign ppl_dmem__kill_o = ctrl_x__mem_kill_i;
+
+assign offset = ex0_dmem_addr[2:0]; 
+assign is_store = (ex0_dmem_opcode == MEM_OP_STORE || ex0_dmem_opcode == MEM_OP_ST_FP); 
+assign is_load  = (ex0_dmem_opcode == MEM_OP_LOAD  || ex0_dmem_opcode == MEM_OP_LD_FP);
+assign is_amo   = (ex0_dmem_opcode == MEM_OP_SC    || ex0_dmem_opcode == MEM_OP_AMO || ex0_dmem_opcode == MEM_OP_LR);
+assign misaligned = (ex0_dmem_size == SIZE_HALF)  ? (ex0_dmem_addr[0]   != 1'h0): 
+                    (ex0_dmem_size == SIZE_WORD)  ? (ex0_dmem_addr[1:0] != 2'h0): 
+                    (ex0_dmem_size == SIZE_DWORD) ? (ex0_dmem_addr[2:0] != 3'h0) : 1'b0;
+
 // access the DMEM.
-assign ppl_dmem__vld_o = (dmem_recall) ? mem_dmem_vld : ex0_dmem_vld;
-assign ppl_dmem__addr_o = (dmem_recall) ? mem_dmem_addr: ex0_dmem_addr;
-assign ppl_dmem__wdata_o = (dmem_recall) ? mem_dmem_wdata : ex0_dmem_wdata;
-assign ppl_dmem__size_o = (dmem_recall) ? mem_dmem_size: ex0_dmem_size;
-assign ppl_dmem__opcode_o = (dmem_recall) ? mem_dmem_opcode : ex0_dmem_opcode;
-assign ppl_dmem__amo_opcode_o = (dmem_recall) ? mem_dmem_amo_opcode : ex0_dmem_amo_opcode;
-assign ppl_dmem__kill_o = ctrl_x__mem_kill_i;
+assign ppl_dmem__req_o      = ppl_mmu__req_o && mmu_ppl__dtlb_hit_i && !ex0_exception.valid;
+
+assign ppl_dmem__req_bits_o.addr_inx = ex0_dmem_addr[DCACHE_TAG_LSB-1:0];
+assign ppl_dmem__req_bits_o.addr_tag = mmu_ppl__paddr_i[DCACHE_TAG_MSB-1:DCACHE_TAG_LSB];
+assign ppl_dmem__req_bits_o.wdata    = ex0_dmem_wdata << (8*offset);
+assign ppl_dmem__req_bits_o.size     = ex0_dmem_size;
+assign ppl_dmem__req_bits_o.we       = is_store || (is_amo && ex0_dmem_opcode != MEM_OP_LR);
+assign ppl_dmem__req_bits_o.be       = (ex0_dmem_size == SIZE_BYTE) ? (8'h1 << offset) : 
+                                       (ex0_dmem_size == SIZE_HALF) ? (8'h3 << offset) : 
+                                       (ex0_dmem_size == SIZE_WORD) ? (8'hF << offset) : 8'hFF;
+assign ppl_dmem__req_bits_o.amo_op   = ex0_dmem_amo_opcode;
+// kill if address translate occur exception
+assign ppl_dmem__req_bits_o.kill     = mmu_ppl__ex_i.valid && mem_first_cycle; 
+// assign ppl_dmem__req_bits_o.kill     = ctrl_x__mem_kill_i;
 // -----
 // [Phase: MEM]
 assign mem_stall = dmem_miss || mdu_alu__mul_wb_busy_i || mdu_alu__div_wb_busy_i;
@@ -418,20 +488,21 @@ always_ff @(posedge clk_i) begin
         mem_stage_act[1] <= `TCQ dec_alu__stage_act_i[1];
         mem_pc <= `TCQ dec_alu__pc_i;
         mem_npc <= `TCQ dec_alu__npc_i;
+        mem_access_dc <= `TCQ ppl_dmem__req_o && dmem_ppl__rsp_i;
         mem_instr <= `TCQ dec_alu__instr_i;
         mem_rdst_en <= `TCQ dec_alu__rdst_en_i;
         mem_rdst_src_sel <= `TCQ dec_alu__rdst_src_sel_i;
         mem_rdst_idx <= `TCQ dec_alu__rdst_idx_i;
         mem_rdst_from_alsc <= `TCQ ex0_rdst_from_alsc;
         mem_sign_ext <= `TCQ dec_alu__sign_ext_i;
-        mem_dmem_vld <= `TCQ ex0_dmem_vld;
+        // mem_dmem_vld <= `TCQ ex0_dmem_vld;
         mem_dmem_we <= `TCQ ex0_dmem_we;
         mem_dmem_addr <= `TCQ ex0_dmem_addr;
         mem_dmem_wdata <= `TCQ ex0_dmem_wdata;
         mem_dmem_wstrb <= `TCQ ex0_dmem_wstrb;
         mem_dmem_size <= `TCQ ex0_dmem_size;
         mem_dmem_offset <= `TCQ als_out[2:0];
-        mem_ex_from_alu <= `TCQ dec_alu__exceptions_i;
+        mem_ex_from_alu <= `TCQ ex0_exception;
         mem_dmem_opcode <= `TCQ ex0_dmem_opcode;
         mem_dmem_amo_opcode <= `TCQ ex0_dmem_amo_opcode;
 
@@ -452,45 +523,68 @@ always_ff @(posedge clk_i) begin
 end
 
 assign mem_single_prec = (mem_dmem_opcode == MEM_OP_LD_FP) && (mem_dmem_size == SIZE_WORD);
-// Generate the data memory access recall signal
+// mem access dc dly
 always_ff @(`DFF_CR(clk_i, rst_i)) begin
     if(`DFF_IS_R(rst_i)) begin
-        ppl_dmem__vld_dly1 <= `TCQ 1'b0;
+        mem_first_cycle <= `TCQ 1'b0;
     end else begin
-        ppl_dmem__vld_dly1 <= `TCQ ppl_dmem__vld_o;
-    end
-end
-assign dmem_miss = ppl_dmem__vld_dly1 && !dmem_ppl__hit_i;
-
-always_ff @(posedge clk_i) begin
-    if(dec_alu__ex0_avail_i) begin
-        dmem_recall_dly <= `TCQ 1'b1;
-    end else begin
-        dmem_recall_dly <= `TCQ dmem_recall;
-    end
-end
-assign dmem_recall = dmem_recall_dly && dmem_miss && (!mem_kill);
-
-// read data from D cache
-always_ff @(posedge clk_i) begin
-    if(`DFF_IS_R(rst_i)) begin
-        dmem_rdata <= '0;
-    end else begin 
-        if(dmem_ppl__hit_i && ppl_dmem__vld_dly1) begin
-            dmem_rdata <= `TCQ dmem_ppl__rdata_i;
+        if (dec_alu__ex0_avail_i) begin
+            mem_first_cycle <= `TCQ ppl_dmem__req_o && dmem_ppl__rsp_i;
         end else begin
-            dmem_rdata <= `TCQ dmem_rdata;
+            mem_first_cycle <= `TCQ 1'b0;
+        end
+    end
+end
+// exception at mem stage
+always_comb begin: gen_mem_ex
+    mem_exceptions = mem_exceptions_q;
+    if(mem_ex_from_alu.valid) begin
+        mem_exceptions = mem_ex_from_alu;
+    end else if(mmu_ppl__ex_i.valid && mem_first_cycle) begin
+        mem_exceptions = mmu_ppl__ex_i;
+    end
+end
+always_ff @(`DFF_CR(clk_i, rst_i)) begin
+    if(`DFF_IS_R(rst_i)) begin
+        mem_exceptions_q <= `TCQ '0;
+    end else begin
+        if (dec_alu__ex0_avail_i) begin
+            mem_exceptions_q <= `TCQ '0;
+        end else begin
+            mem_exceptions_q <= `TCQ mem_exceptions;
         end
     end
 end
 
-// exception from D cache
-always_comb begin: gen_mem_ex
-    mem_exceptions = '0;
-    if(mem_ex_from_alu.valid) begin
-        mem_exceptions =  mem_ex_from_alu;
-    end else if(dmem_ppl__hit_i && ppl_dmem__vld_dly1 && dmem_ppl__exception_i.valid) begin
-        mem_exceptions =  dmem_ppl__exception_i;
+// when cache hit, mem stage might be stall by mdu beacuse of write back bus confliction
+// beacuse cache hit only last for one clock cycle, we must save cache hit info(including read data)   
+always_ff @(`DFF_CR(clk_i, rst_i)) begin
+    if(`DFF_IS_R(rst_i)) begin
+        mem_access_dc_done <= `TCQ 1'b0;
+    end else begin
+        if (dec_alu__ex0_avail_i) begin
+            mem_access_dc_done <= `TCQ 1'b0;
+        end else if (dmem_ppl__rsp_bits_i.valid) begin
+            mem_access_dc_done <= `TCQ 1'b1;
+        end
+    end
+end
+assign dmem_miss = mem_access_dc && !dmem_ppl__rsp_bits_i.valid && !mem_access_dc_done && !mem_exceptions.valid;
+
+always_ff @(posedge clk_i) begin
+    mem_dc_hit_dly <= `TCQ mem_access_dc && dmem_ppl__rsp_bits_i.valid;
+end
+
+// read data from D cache
+always_ff @(posedge clk_i) begin
+    if(`DFF_IS_R(rst_i)) begin
+        mem_rd_data_temp <= '0;
+    end else begin 
+        if(mem_dc_hit_dly) begin
+            mem_rd_data_temp <= `TCQ dmem_ppl__rsp_bits_i.rdata;
+        end else begin
+            mem_rd_data_temp <= `TCQ mem_rd_data_temp;
+        end
     end
 end
 
@@ -550,12 +644,17 @@ always_ff @(posedge clk_i) begin
         wb_rs1_data <= mem_rs1_data;
 
         wb_exceptions <= mem_exceptions;
+        wb_dc_hit     <= mem_access_dc && dmem_ppl__rsp_bits_i.valid;
     end
 end
 
 //======================================================================================================================
 // generate write back data
 //======================================================================================================================
+// MDU need to write back and occupy write back bus, at the same time dcache send cache hit back, because cache hit only
+// last for one clock cycle, so we must save read data from D cache in case read data lost
+// If above situation happen, the right read data come from `mem_rd_data_temp` otherwise read data come from `dmem_ppl__rsp_bits_i.rdata`
+assign dmem_rdata = wb_dc_hit ? dmem_ppl__rsp_bits_i.rdata : mem_rd_data_temp; 
 always_comb begin
     dmem_rdata_sr = dmem_rdata >> (8*wb_dmem_offset);
     case(wb_dmem_size)
@@ -660,4 +759,83 @@ assign alu_dec__bp1_f_or_x_o = bp1_alu_en;
 
 // synopsys translate_off
 // synopsys translate_on
+(* mark_debug = "true" *) logic                           prb_ppl_mmu_req;
+logic[63:0]                     prb_ppl_mmu_vaddr;
+(* mark_debug = "true" *) logic                           prb_ppl_mmu_is_st;
+(* mark_debug = "true" *) logic                           prb_mmu_ppl_dtlb_hit;
+(* mark_debug = "true" *) logic                           prb_mmu_ppl_valid;
+(* mark_debug = "true" *) logic[63:0]                     prb_mmu_ppl_paddr;
+// (* mark_debug = "true" *) exception_t                     prb_mmu_ppl_ex;
+(* mark_debug = "true" *) logic                           prb_mmu_ppl_ex_valid;
+(* mark_debug = "true" *) logic[4:0]                      prb_mmu_ppl_ex_cause;
+(* mark_debug = "true" *) logic                           prb_mem_ex_valid;
+
+(* mark_debug = "true" *) logic                           prb_ppl_dmem_req;
+(* mark_debug = "true" *) logic                           prb_dmem_ppl_rsp;
+// dcache_req_t                    prb_ppl_dmem_req_bits;
+// dcache_rsp_t                    prb_dmem_ppl_rsp_bits;
+(* mark_debug = "true" *) logic [63:0]                    prb_ppl_dmem_wdata;
+(* mark_debug = "true" *) logic [63:0]                    prb_ppl_dmem_vaddr;
+(* mark_debug = "true" *) mem_opcode_e                    prb_ppl_dmem_mem_op;         
+(* mark_debug = "true" *) amo_t                           prb_ppl_dmem_amo_op;                    
+(* mark_debug = "true" *) logic [1:0]                     prb_ppl_dmem_size;
+
+(* mark_debug = "true" *) logic                           prb_ex0_tlb_miss_blk;
+(* mark_debug = "true" *) logic                           prb_ex0_dc_rsp_blk;
+
+assign prb_ppl_mmu_req      =  ppl_mmu__req_o     ;
+assign prb_ppl_mmu_vaddr    =  ppl_mmu__vaddr_o   ;
+assign prb_ppl_mmu_is_st    =  ppl_mmu__is_store_o;
+assign prb_mmu_ppl_dtlb_hit =  mmu_ppl__dtlb_hit_i;
+assign prb_mmu_ppl_valid    =  mmu_ppl__valid_i   ;
+assign prb_mmu_ppl_paddr    =  mmu_ppl__paddr_i   ;
+// assign prb_mmu_ppl_ex       =  mmu_ppl__ex_i      ;
+assign prb_mmu_ppl_ex_valid = mmu_ppl__ex_i.valid;
+assign prb_mmu_ppl_ex_cause = mmu_ppl__ex_i.cause[4:0];
+assign prb_mem_ex_valid     = mem_first_cycle && mmu_ppl__ex_i.valid;
+
+
+assign prb_ppl_dmem_req      = ppl_dmem__req_o     ;
+assign prb_dmem_ppl_rsp      = dmem_ppl__rsp_i     ;
+assign prb_ppl_dmem_wdata    = ppl_dmem__req_bits_o.wdata;
+assign prb_ppl_dmem_vaddr    = ex0_dmem_addr;
+assign prb_ppl_dmem_mem_op   = ex0_dmem_opcode;         
+assign prb_ppl_dmem_amo_op   = ex0_dmem_amo_opcode;                    
+assign prb_ppl_dmem_size     = ex0_dmem_size;
+
+// assign prb_ppl_dmem_req_bits = ppl_dmem__req_bits_o;
+// assign prb_dmem_ppl_rsp_bits = dmem_ppl__rsp_bits_i;
+
+assign prb_ex0_tlb_miss_blk = alu_dec__tlb_miss_block_o;
+assign prb_ex0_dc_rsp_blk   = alu_dec__dc_rsp_block_o;
+
+(* mark_debug = "true" *) logic                           prb_mem_act;
+(* mark_debug = "true" *) logic                           prb_mem_stall;
+(* mark_debug = "true" *) logic                           prb_mem_avail;
+(* mark_debug = "true" *) logic[63:0]                     prb_mem_pc;          
+(* mark_debug = "true" *) logic[31:0]                     prb_mem_instr;
+(* mark_debug = "true" *) logic                           prb_mem_acc_dc;
+(* mark_debug = "true" *) logic                           prb_mem_first_cycle;
+(* mark_debug = "true" *) logic                           prb_mem_dc_miss;
+exception_t                     prb_mem_ex;
+(* mark_debug = "true" *) logic                           prb_mem_mdu_cnlct;
+
+(* mark_debug = "true" *) logic                           prb_wb_act;
+(* mark_debug = "true" *) logic[63:0]                     prb_wb_pc;
+logic[63:0]                     prb_wb_rdata;
+
+assign prb_mem_act      = mem_act;
+assign prb_mem_stall    = mem_stall;
+assign prb_mem_avail    = mem_avail;
+assign prb_mem_pc       = mem_pc;          
+assign prb_mem_instr    = mem_instr;
+assign prb_mem_acc_dc   = mem_access_dc;
+assign prb_mem_first_cycle = mem_first_cycle;
+assign prb_mem_dc_miss  = dmem_miss;
+assign prb_mem_ex       = mem_exceptions;
+assign prb_mem_mdu_cnlct = dmem_ppl__rsp_bits_i.valid && (mdu_alu__div_wb_busy_i || mdu_alu__mul_wb_busy_i);
+
+assign prb_wb_act      = wb_act;
+assign prb_wb_pc       = wb_pc;
+assign prb_wb_rdata    = dmem_rdata;
 endmodule : sy_ppl_alu

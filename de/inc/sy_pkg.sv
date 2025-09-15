@@ -1049,6 +1049,7 @@ parameter DCACHE_SET_SIZE          = 32;   // D cache contains 32 sets
 parameter DCACHE_BLOCK_SIZE        = 128; // 128B
 parameter DCACHE_DATA_SIZE         = 8;   // Data Bus is 8B 
 parameter DCACHE_WAY_NUM           = 4;
+parameter DCACHE_WAY_WTH           = $clog2(DCACHE_WAY_NUM);
 
 parameter DCACHE_TAG_LSB           = 12;
 parameter DCACHE_TAG_WTH           = 32;
@@ -1153,10 +1154,11 @@ typedef struct packed {
   logic [DCACHE_WAY_NUM-1:0]          way_en;
   logic [DCACHE_TAG_LSB-1:0]          idx;
   logic [DCACHE_DATA_SIZE*8-1:0]      wr_data;
+  logic [DCACHE_DATA_SIZE-1:0]        wstrb;
 } data_req_t;
 
 typedef struct packed {
-  logic [DCACHE_DATA_SIZE*8-1:0]      rd_data; 
+  logic [DCACHE_WAY_NUM-1:0][DCACHE_DATA_SIZE*8-1:0] rd_data; 
 } data_rsp_t;
 
 typedef struct packed {
@@ -1271,20 +1273,23 @@ typedef struct packed {
     logic [63:0] result; // sign-extended, result
 } amo_resp_t;
 
+typedef enum logic [0:0] {
+  MMU   = 0,
+  PPL   = 1
+} dc_req_src_e;
+
 typedef struct packed {
     logic [DCACHE_TAG_LSB-1:0]     addr_inx;  
     logic [DCACHE_TAG_WTH-1:0]     addr_tag;
     logic [63:0]                   wdata;
-    logic                          req;
-    logic                          we;
-    logic [7:0]                    be;
     logic [1:0]                    size;
-    logic                          kill;
+    logic                          we;
+    logic [7:0]                    be;                
     amo_t                          amo_op;      
+    logic                          kill; 
 } dcache_req_t;
 
 typedef struct packed {
-    logic                          ack;
     logic                          valid;
     logic [63:0]                   rdata;
 } dcache_rsp_t;

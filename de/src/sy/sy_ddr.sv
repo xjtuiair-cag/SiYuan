@@ -379,7 +379,7 @@ module sy_ddr
     axi_mem_sim # (
       .ADDR_WTH  (64),
       .DATA_WTH  (64),
-      .MEM_SIZE  (64*1024*1024)
+      .MEM_SIZE  (512*1024*1024)
     ) ddr_sim(
         .clk_i                (clk_i),          
         .rst_i                (rst_i),          

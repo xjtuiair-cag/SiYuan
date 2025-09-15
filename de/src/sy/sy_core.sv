@@ -89,6 +89,7 @@ logic                           dec_fet__raw_hazard;
 logic[4:0]                      dec_reg__rs1_idx;
 logic[4:0]                      dec_reg__rs2_idx;
 logic                           dec_alu__ex0_avail;
+logic                           dec_alu__ex0_act;
 instr_cls_e                     dec_alu__instr_cls;
 logic[1:0]                      dec_alu__stage_act;
 logic[AWTH-1:0]                 dec_alu__npc;
@@ -132,6 +133,8 @@ logic                           dec_mdu__only_word;
 logic[DWTH-1:0]                 reg_dec__rs1_reg;
 logic[DWTH-1:0]                 reg_dec__rs2_reg;
 // alu
+logic                           alu_dec__tlb_miss_block;
+logic                           alu_dec__dc_rsp_block;
 logic                           alu_dec__mem_accpt;
 logic                           alu_x__mispred_en;
 logic[AWTH-1:0]                 alu_x__mispred_pc;
@@ -247,18 +250,6 @@ logic                           alu_fp_reg__rdst_en     ;
 logic[4:0]                      alu_fp_reg__rdst_idx    ;
 logic[DWTH-1:0]                 alu_fp_reg__rdst_data   ;
 
-logic                           ppl_dmem__vld           ;     
-logic[AWTH-1:0]                 ppl_dmem__addr          ;      
-logic[DWTH-1:0]                 ppl_dmem__wdata         ;       
-size_e                          ppl_dmem__size          ;      
-mem_opcode_e                    ppl_dmem__opcode        ;        
-logic[DWTH-1:0]                 ppl_dmem__operand       ;         
-amo_t                           ppl_dmem__amo_opcode    ;            
-logic                           ppl_dmem__kill          ;      
-logic                           dmem_ppl__hit           ;     
-logic[DWTH-1:0]                 dmem_ppl__rdata         ;       
-exception_t                     dmem_ppl__exception     ; 
-
 logic                            en_translation         ;                             
 logic                            en_ld_st_translation   ;                             
 priv_lvl_t                       ld_st_priv_lvl         ;                             // Privilege level at which load and stores should happen
@@ -276,16 +267,23 @@ logic  [4:0]                     perf_addr              ;                       
 logic  [63:0]                    perf_data              ;                             // read data from performance counter module
 logic                            perf_we                ; 
 
-logic                            lsu_mmu__req           ;   
-logic[63:0]                      lsu_mmu__vaddr         ;     
-logic                            lsu_mmu__is_store      ;        
-logic                            mmu_lsu__dtlb_hit      ;        
-logic                            mmu_lsu__valid         ;     
-logic[63:0]                      mmu_lsu__paddr         ;     
-exception_t                      mmu_lsu__ex            ;  
+logic                            ppl_mmu__req           ;   
+logic[63:0]                      ppl_mmu__vaddr         ;     
+logic                            ppl_mmu__is_store      ;        
+logic                            mmu_ppl__dtlb_hit      ;        
+logic                            mmu_ppl__valid         ;     
+logic[63:0]                      mmu_ppl__paddr         ;     
+exception_t                      mmu_ppl__ex            ;  
 
-dcache_req_t [1:0]             dcache_req;
-dcache_rsp_t [1:0]             dcache_rsp;
+logic                            ppl_dmem__req;
+logic                            dmem_ppl__rsp;
+dcache_req_t                     ppl_dmem__req_bits;
+dcache_rsp_t                     dmem_ppl__rsp_bits; 
+logic                            mmu_dmem__req;
+logic                            dmem_mmu__rsp;
+dcache_req_t                     mmu_dmem__req_bits;
+dcache_rsp_t                     dmem_mmu__rsp_bits; 
+
 
 amo_req_t                           amo_req;
 amo_resp_t                          amo_resp; 
@@ -457,6 +455,7 @@ sy_ppl_dec u_sy_ppl_dec (
     // =====================================
     // [to ppl_alu]
     .dec_alu__ex0_avail_o                   (dec_alu__ex0_avail),               
+    .dec_alu__ex0_act_o                     (dec_alu__ex0_act),               
     .dec_alu__instr_cls_o                   (dec_alu__instr_cls),               
     .dec_alu__stage_act_o                   (dec_alu__stage_act),               
     .dec_alu__npc_o                         (dec_alu__npc),                     
@@ -492,6 +491,9 @@ sy_ppl_dec u_sy_ppl_dec (
     .dec_alu__exception_o                   (dec_alu__exception  ), 
     .dec_alu__only_word_o                   (dec_alu__only_word  ),                            
     .dec_alu__is_compressed_o               (dec_alu__is_compressed),
+    .alu_dec__tlb_miss_block_i              (alu_dec__tlb_miss_block),
+    .alu_dec__dc_rsp_block_i                (alu_dec__dc_rsp_block),
+
 
     .alu_dec__mem_blk_en_i                  (alu_dec__mem_blk_en),              
     .alu_dec__mem_blk_idx_i                 (alu_dec__mem_blk_idx),             
@@ -623,6 +625,7 @@ sy_ppl_alu u_sy_ppl_alu (
     // =====================================
     // [to ppl_dec]
     .dec_alu__ex0_avail_i                   (dec_alu__ex0_avail),             
+    .dec_alu__ex0_act_i                     (dec_alu__ex0_act),             
     .dec_alu__instr_cls_i                   (dec_alu__instr_cls),             
     .dec_alu__stage_act_i                   (dec_alu__stage_act),             
     .dec_alu__npc_i                         (dec_alu__npc),                   
@@ -659,6 +662,9 @@ sy_ppl_alu u_sy_ppl_alu (
     .dec_alu__only_word_i                   (dec_alu__only_word),
     .dec_alu__is_compressed_i               (dec_alu__is_compressed),
 
+    .alu_dec__tlb_miss_block_o              (alu_dec__tlb_miss_block),           
+    .alu_dec__dc_rsp_block_o                (alu_dec__dc_rsp_block),
+
     .alu_dec__mem_blk_en_o                  (alu_dec__mem_blk_en),              
     .alu_dec__mem_blk_idx_o                 (alu_dec__mem_blk_idx),             
     .alu_dec__mem_blk_f_or_x_o              (alu_dec__mem_blk_f_or_x),
@@ -681,18 +687,21 @@ sy_ppl_alu u_sy_ppl_alu (
     .alu_fp_reg__rdst_idx_o                 (alu_fp_reg__rdst_idx    ),              
     .alu_fp_reg__rdst_data_o                (alu_fp_reg__rdst_data   ),               
     // =====================================
+    // [address translation request]
+    .ppl_mmu__req_o                         (ppl_mmu__req     ),       
+    .ppl_mmu__vaddr_o                       (ppl_mmu__vaddr   ),         
+    .ppl_mmu__is_store_o                    (ppl_mmu__is_store),            
+    .mmu_ppl__dtlb_hit_i                    (mmu_ppl__dtlb_hit),            
+    .mmu_ppl__valid_i                       (mmu_ppl__valid   ),         
+    .mmu_ppl__paddr_i                       (mmu_ppl__paddr   ),         
+    .mmu_ppl__ex_i                          (mmu_ppl__ex      ),      
+    // =====================================
     // [to LSU]
-    .ppl_dmem__vld_o                        (ppl_dmem__vld        ),              
-    .ppl_dmem__addr_o                       (ppl_dmem__addr       ),               
-    .ppl_dmem__wdata_o                      (ppl_dmem__wdata      ),                
-    .ppl_dmem__size_o                       (ppl_dmem__size       ),               
-    .ppl_dmem__opcode_o                     (ppl_dmem__opcode     ),                 
-    .ppl_dmem__amo_opcode_o                 (ppl_dmem__amo_opcode ),                     
-    .ppl_dmem__kill_o                       (ppl_dmem__kill       ),               
-    .dmem_ppl__hit_i                        (dmem_ppl__hit        ),              
-    .dmem_ppl__rdata_i                      (dmem_ppl__rdata      ),                
-    .dmem_ppl__exception_i                  (dmem_ppl__exception  )              
-);
+    .ppl_dmem__req_o                        (ppl_dmem__req     ),
+    .dmem_ppl__rsp_i                        (dmem_ppl__rsp     ),
+    .ppl_dmem__req_bits_o                   (ppl_dmem__req_bits),
+    .dmem_ppl__rsp_bits_i                   (dmem_ppl__rsp_bits)
+    );
 
 sy_ppl_mdu u_sy_ppl_mdu (
     // =====================================
@@ -831,36 +840,6 @@ sy_ppl_csr_regfile #(
     .perf_we_o                              (perf_we              )  
 );
 
-sy_ppl_lsu u_sy_lsu(
-    // =====================================
-    // [clock & reset]
-    // -- <clock>
-    .clk_i                                  (clk_i                    ),                   // clock
-    .rst_i                                  (rst_i                    ),                   // reset
-                                             
-    .ppl_dmem__vld_i                        (ppl_dmem__vld          ),       
-    .ppl_dmem__addr_i                       (ppl_dmem__addr         ),        
-    .ppl_dmem__wdata_i                      (ppl_dmem__wdata        ),         
-    .ppl_dmem__size_i                       (ppl_dmem__size         ),        
-    .ppl_dmem__opcode_i                     (ppl_dmem__opcode       ),          
-    .ppl_dmem__amo_opcode_i                 (ppl_dmem__amo_opcode   ),              
-    .ppl_dmem__kill_i                       (ppl_dmem__kill         ),        
-    .dmem_ppl__hit_o                        (dmem_ppl__hit          ),       
-    .dmem_ppl__rdata_o                      (dmem_ppl__rdata        ),         
-    .dmem_ppl__ex_o                         (dmem_ppl__exception    ),      
-                                             
-    .lsu_mmu__req_o                         (lsu_mmu__req           ),      
-    .lsu_mmu__vaddr_o                       (lsu_mmu__vaddr         ),        
-    .lsu_mmu__is_store_o                    (lsu_mmu__is_store      ),           
-    .mmu_lsu__dtlb_hit_i                    (mmu_lsu__dtlb_hit      ),           
-    .mmu_lsu__valid_i                       (mmu_lsu__valid         ),        
-    .mmu_lsu__paddr_i                       (mmu_lsu__paddr         ),        
-    .mmu_lsu__ex_i                          (mmu_lsu__ex            ),     
-                                             
-    .lsu_dcache__req_o                      (dcache_req[1]),               
-    .dcache_lsu__rsp_i                      (dcache_rsp[1])              
-);
-
 cva6_mmu #(
     .INSTR_TLB_ENTRIES      ( 16                     ),
     .DATA_TLB_ENTRIES       ( 16                     ) 
@@ -875,15 +854,15 @@ cva6_mmu #(
     .icache_areq_o                          (icache_arsp            ),        
                                              
     .misaligned_ex_i                        ('0                     ),          
-    .lsu_req_i                              (lsu_mmu__req           ), // request address translation
-    .lsu_vaddr_i                            (lsu_mmu__vaddr         ), // virtual address in
-    .lsu_is_store_i                         (lsu_mmu__is_store      ), // the translation is requested by a store
+    .lsu_req_i                              (ppl_mmu__req           ), // request address translation
+    .lsu_vaddr_i                            (ppl_mmu__vaddr         ), // virtual address in
+    .lsu_is_store_i                         (ppl_mmu__is_store      ), // the translation is requested by a store
                                              
-    .lsu_dtlb_hit_o                         (mmu_lsu__dtlb_hit      ), // sent in the same cycle as the request if translation hits in the DTLB
+    .lsu_dtlb_hit_o                         (mmu_ppl__dtlb_hit      ), // sent in the same cycle as the request if translation hits in the DTLB
                                              
-    .lsu_valid_o                            (mmu_lsu__valid         ), // translation is valid
-    .lsu_paddr_o                            (mmu_lsu__paddr         ), // translated address
-    .lsu_exception_o                        (mmu_lsu__ex            ), // address translation threw an exception
+    .lsu_valid_o                            (mmu_ppl__valid         ), // translation is valid
+    .lsu_paddr_o                            (mmu_ppl__paddr         ), // translated address
+    .lsu_exception_o                        (mmu_ppl__ex            ), // address translation threw an exception
                                              
     .priv_lvl_i                             (priv_lvl               ),     
     .ld_st_priv_lvl_i                       (ld_st_priv_lvl         ),           
@@ -896,9 +875,11 @@ cva6_mmu #(
                                              
     .itlb_miss_o                            (                       ),      
     .dtlb_miss_o                            (                       ),      
-                                             
-    .rsp_port_i                             (dcache_rsp[0]          ),     
-    .req_port_o                             (dcache_req[0]          )  
+
+    .mmu_dmem__req_o                        (mmu_dmem__req     ),
+    .dmem_mmu__rsp_i                        (dmem_mmu__rsp     ),
+    .mmu_dmem__req_bits_o                   (mmu_dmem__req_bits),
+    .dmem_mmu__rsp_bits_i                   (dmem_mmu__rsp_bits)    
 );
 
 sy_L1_cache  #(
@@ -919,8 +900,18 @@ sy_L1_cache  #(
     .mmu_icache__rsp_i                      (icache_arsp),                  
     .fetch_icache__req_i                    (fet_icache__dreq),                                         
     .icache_fetch__rsp_o                    (icache_fet__drsp),                    
-    .dcache_req_i                           (dcache_req),             
-    .dcache_rsp_o                           (dcache_rsp),             
+
+    .ppl_dmem__kill_i                       (ctrl_x__if0_kill),    
+    .ppl_dmem__req_i                        (ppl_dmem__req     ),             
+    .dmem_ppl__rsp_o                        (dmem_ppl__rsp     ),             
+    .ppl_dmem__req_bits_i                   (ppl_dmem__req_bits),                  
+    .dmem_ppl__rsp_bits_o                   (dmem_ppl__rsp_bits),                    
+                                             
+    .mmu_dmem__req_i                        (mmu_dmem__req     ),             
+    .dmem_mmu__rsp_o                        (dmem_mmu__rsp     ),             
+    .mmu_dmem__req_bits_i                   (mmu_dmem__req_bits),                  
+    .dmem_mmu__rsp_bits_o                   (dmem_mmu__rsp_bits),                    
+
     .slave                                  (master)
 );
 

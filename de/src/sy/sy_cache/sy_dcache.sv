@@ -37,11 +37,21 @@ module sy_dcache
   input  logic                            rst_i,
   input  logic                            flush_i,  // from pipeline             
   output logic                            flush_done_o,
+  input  logic                            ppl_dmem__kill_i,
 
   output logic                            cache_miss_o,               
-
-  input  dcache_req_t [REQ_PORT-1:0]      dcache_req_i,
-  output dcache_rsp_t [REQ_PORT-1:0]      dcache_rsp_o,
+  // =====================================
+  // [D cache req from ppl]
+  input  logic                            ppl_dmem__req_i,
+  output logic                            dmem_ppl__rsp_o,
+  input  dcache_req_t                     ppl_dmem__req_bits_i,
+  output dcache_rsp_t                     dmem_ppl__rsp_bits_o,  
+  // =====================================
+  // [D cache req from mmu]
+  input  logic                            mmu_dmem__req_i,
+  output logic                            dmem_mmu__rsp_o,
+  input  dcache_req_t                     mmu_dmem__req_bits_i,
+  output dcache_rsp_t                     dmem_mmu__rsp_bits_o,  
   // A channel
   output logic                            dcache_A_valid_o,
   input  logic                            dcache_A_ready_i,
@@ -100,14 +110,22 @@ module sy_dcache
   ) dcache_ctrl_inst(
       .clk_i                      (clk_i             ),       
       .rst_i                      (rst_i             ),       
+      .ppl_kill_i                 (ppl_dmem__kill_i  ),       
   
       .cache_miss_o               (cache_miss_o      ),                             
       .allow_probe_o              (allow_probe       ),               
       .probe_flight_i             (probe_flight      ),                 
       .acquire_flight_i           (acquire_flight    ),
       
-      .dcache_req_i               (dcache_req_i      ),              
-      .dcache_rsp_o               (dcache_rsp_o      ),              
+      .ppl_dmem__req_i            (ppl_dmem__req_i     ),      
+      .dmem_ppl__rsp_o            (dmem_ppl__rsp_o     ),      
+      .ppl_dmem__req_bits_i       (ppl_dmem__req_bits_i),           
+      .dmem_ppl__rsp_bits_o       (dmem_ppl__rsp_bits_o),             
+                                   
+      .mmu_dmem__req_i            (mmu_dmem__req_i     ),      
+      .dmem_mmu__rsp_o            (dmem_mmu__rsp_o     ),      
+      .mmu_dmem__req_bits_i       (mmu_dmem__req_bits_i),           
+      .dmem_mmu__rsp_bits_o       (dmem_mmu__rsp_bits_o),             
       
       .miss_req_o                 (miss_req          ),            
       .miss_ack_i                 (miss_ack          ),            

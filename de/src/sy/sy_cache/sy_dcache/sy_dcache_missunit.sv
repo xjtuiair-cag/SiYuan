@@ -93,7 +93,7 @@ module sy_dcache_missunit
   typedef enum logic[3:0] {IDLE,DIRTY,ACQUIRE,ACQUIRE_BLOCK, ACQUIRE_PERM,RELEASE_DATA,RELEASE_REQ,
                             RELEASE,RELEASE_ACK,FLUSH,GRANT_ACK} state_e;
 
-  typedef enum logic[3:0] {PROBE_IDLE,PROBE,PROBE_ACK,PROBE_ACK_DATA} probe_state_e;
+  typedef enum logic[3:0] {PROBE_IDLE,PROBE_WAIT,PROBE,PROBE_ACK,PROBE_ACK_DATA} probe_state_e;
 
   state_e       state_d, state_q;
   probe_state_e probe_state_d, probe_state_q;
@@ -167,7 +167,8 @@ module sy_dcache_missunit
   logic                                       release_valid;
   logic                                       is_allow_probe;
   logic                                       under_release;
-
+  logic [DCACHE_WAY_WTH-1:0]                  data_rd_way_idx, data_rd_way_idx_dly;
+  logic [2:0]                                 probe_wait_cnt_d,probe_wait_cnt_q;
 //======================================================================================================================
 // Save request 
 //======================================================================================================================
@@ -261,6 +262,7 @@ module sy_dcache_missunit
   assign data_req_o             = data_rd_en || data_wr_en;
   assign data_req_bits_o.we     = data_wr_en ? 1'b1 : 1'b0; 
   assign data_req_bits_o.wr_data  = dcache_D_bits_i.data; // only write data from D channel
+  assign data_req_bits_o.wstrb  = 8'hff;
 
   always_comb begin : gen_data_way_and_idx
     data_req_bits_o.way_en      = 4'h0;
@@ -455,13 +457,13 @@ module sy_dcache_missunit
       dcache_C_bits_o.opcode  = (probe_state_q==PROBE_ACK) ? tl_pkg::ProbeAck: tl_pkg::ProbeAckData;
       dcache_C_bits_o.param   = |cl_valid_q ? probeAck_permission : tl_pkg::NtoN;        
       dcache_C_bits_o.size    = (probe_state_q==PROBE_ACK) ? '0 : (DCACHE_BLOCK_SIZE / DCACHE_DATA_SIZE - 1);         
-      dcache_C_bits_o.data    = (probe_state_q==PROBE_ACK) ? '0 : data_rsp_bits_i.rd_data;
+      dcache_C_bits_o.data    = (probe_state_q==PROBE_ACK) ? '0 : data_rsp_bits_i.rd_data[data_rd_way_idx_dly];
       dcache_C_bits_o.address = probe_addr_q;
     end else begin                    // for release
       dcache_C_bits_o.opcode  = (state_q==RELEASE_DATA) ? tl_pkg::ReleaseData: tl_pkg::Release;
       dcache_C_bits_o.param   = release_permission;
       dcache_C_bits_o.size    = (state_q==RELEASE_DATA) ? (DCACHE_BLOCK_SIZE / DCACHE_DATA_SIZE - 1) : '0;
-      dcache_C_bits_o.data    = (state_q==RELEASE_DATA) ? data_rsp_bits_i.rd_data : '0;
+      dcache_C_bits_o.data    = (state_q==RELEASE_DATA) ? data_rsp_bits_i.rd_data[data_rd_way_idx_dly] : '0;
       if (flush_q) begin
         dcache_C_bits_o.address = {release_addr_tag_q,flush_idx_q[DCACHE_TAG_LSB-1:DCACHE_BLOCK_MSB],{DCACHE_BLOCK_WTH{1'b0}}};
       end else begin
@@ -678,12 +680,25 @@ module sy_dcache_missunit
     probe_tag_wr    = 1'b0;
     probe_data_rd   = 1'b0;
     probe_ack_valid = 1'b0;
+    probe_wait_cnt_d = probe_wait_cnt_q;
 
     case(probe_state_q)
         PROBE_IDLE: begin
           if (probe_req) begin
             lock_probe    = 1'b1;
             probe_ack     = 1'b1;
+            probe_wait_cnt_d = '0;
+            probe_state_d = PROBE_WAIT;
+            // probe_tag_rd  = 1'b1;
+          end
+        end
+        // before probe start, we must ensure dcache ctrl has no outstanding request, 
+        // so we must wait until stage1 and stage2 is empty(this cost two cycles)
+        PROBE_WAIT: begin
+          if (probe_wait_cnt_q != 3'd2) begin
+            probe_wait_cnt_d = probe_wait_cnt_q + 1'b1;
+            probe_state_d = PROBE_WAIT;
+          end else begin
             probe_state_d = PROBE;
             probe_tag_rd  = 1'b1;
           end
@@ -751,6 +766,7 @@ module sy_dcache_missunit
       data_rd_addr_q            <= '0;
       probe_flight_q            <= '0;
       unlock_probe_dly1         <= '0;
+      probe_wait_cnt_q          <= '0;
     end else begin
       state_q                   <= state_d;
       probe_state_q             <= probe_state_d;
@@ -774,13 +790,34 @@ module sy_dcache_missunit
       data_rd_addr_q            <= data_rd_addr_d;
       probe_flight_q            <= probe_flight_d;
       unlock_probe_dly1         <= unlock_probe;
+      probe_wait_cnt_q          <= probe_wait_cnt_d;
     end
   end
 
-(* mark_debug = "true" *) state_e prb_dcache_missunit_state;
-(* mark_debug = "true" *) logic[63:0] prb_dcache_missunit_addr;
-assign prb_dcache_missunit_state = state_q;
-assign prb_dcache_missunit_addr = req_bits_q.addr;
+  oneHot2Int #(
+    .WIDTH    (DCACHE_WAY_NUM)
+  ) way_idx(
+      .in_i       (data_req_bits_o.way_en),
+      .cnt_o      (data_rd_way_idx),
+      .empty_o    ()
+  );
+  always_ff @(`DFF_CR(clk_i,rst_i))begin
+      if(`DFF_IS_R(rst_i)) begin
+        data_rd_way_idx_dly <= '0;
+      end else begin
+        data_rd_way_idx_dly <= data_rd_way_idx;
+      end
+  end
+
+
+(* mark_debug = "true" *) state_e prb_dc_missunit_state;
+(* mark_debug = "true" *) probe_state_e prb_dc_probe_state;
+(* mark_debug = "true" *) logic prb_probe_req;
+(* mark_debug = "true" *) logic[2:0] prb_probe_wait_cnt;
+assign prb_dc_missunit_state = state_q;
+assign prb_dc_probe_state = probe_state_q;
+assign prb_probe_req = probe_req;
+assign prb_probe_wait_cnt = probe_wait_cnt_q;
 
 //======================================================================================================================
 // Signals for simulation or probes

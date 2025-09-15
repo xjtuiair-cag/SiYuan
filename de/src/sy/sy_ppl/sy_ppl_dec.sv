@@ -96,6 +96,7 @@ module sy_ppl_dec
     //! DEC module send decoded instruction to ALU module if current instruction belongs to algebra, logic, branch, and
     //! load/store class.
     output  logic                           dec_alu__ex0_avail_o,
+    output  logic                           dec_alu__ex0_act_o,
     output  instr_cls_e                     dec_alu__instr_cls_o,
     output  logic[1:0]                      dec_alu__stage_act_o,
     output  logic[AWTH-1:0]                 dec_alu__npc_o,
@@ -131,6 +132,8 @@ module sy_ppl_dec
     output  exception_t                     dec_alu__exception_o, 
     output  logic                           dec_alu__only_word_o,                            
     output  logic                           dec_alu__is_compressed_o,
+    input   logic                           alu_dec__tlb_miss_block_i,
+    input   logic                           alu_dec__dc_rsp_block_i,
     // block mgr
     input   logic                           alu_dec__mem_blk_en_i,
     input   logic[4:0]                      alu_dec__mem_blk_idx_i,
@@ -1084,7 +1087,8 @@ end
 
 // -----
 // [Phase: Ex0]
-assign ex0_stall = waw_hazard || fu_div_hazard || wb_bus_hazard || (ex0_is_fp && !fpu_dec__valid_i);
+assign ex0_stall = waw_hazard || fu_div_hazard || wb_bus_hazard || (ex0_is_fp && !fpu_dec__valid_i) 
+                || alu_dec__tlb_miss_block_i || alu_dec__dc_rsp_block_i;
 assign ex0_kill = ctrl_x__ex0_kill_i || alu_x__mispred_en_i;
 
 always_ff @(`DFF_CR(clk_i, rst_i)) begin
@@ -1127,6 +1131,7 @@ end
 // Since we cannot guarantee the predicted next PC of multiply and divide instruction is correct, we should use the
 // Misprediction check logic to fix it.
 assign dec_alu__ex0_avail_o = ex0_avail;
+assign dec_alu__ex0_act_o = ex0_act;
 assign dec_alu__instr_cls_o = ex0_instr_cls;
 
 always_ff @(posedge clk_i) begin

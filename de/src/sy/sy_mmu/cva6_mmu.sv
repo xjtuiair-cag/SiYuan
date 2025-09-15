@@ -58,8 +58,10 @@ module cva6_mmu
         output logic                            itlb_miss_o,
         output logic                            dtlb_miss_o,
         // PTW memory interface
-        input  dcache_rsp_t                     rsp_port_i,
-        output dcache_req_t                     req_port_o
+        output logic                            mmu_dmem__req_o,
+        input  logic                            dmem_mmu__rsp_i,
+        output dcache_req_t                     mmu_dmem__req_bits_o,
+        input  dcache_rsp_t                     dmem_mmu__rsp_bits_i  
 );
 
     logic        iaccess_err;   // insufficient privilege to access this instruction page
@@ -153,9 +155,10 @@ module cva6_mmu
         .dtlb_hit_i             ( dtlb_lu_hit           ),
         .dtlb_vaddr_i           ( lsu_vaddr_i           ),
 
-        .rsp_port_i            ( rsp_port_i             ),
-        .req_port_o            ( req_port_o             ),
-
+        .mmu_dmem__req_o        (mmu_dmem__req_o     ),
+        .dmem_mmu__rsp_i        (dmem_mmu__rsp_i     ),
+        .mmu_dmem__req_bits_o   (mmu_dmem__req_bits_o),
+        .dmem_mmu__rsp_bits_i   (dmem_mmu__rsp_bits_i),  
         .*
      );
 

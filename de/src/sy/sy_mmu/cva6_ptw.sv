@@ -33,9 +33,10 @@ module cva6_ptw
 
     input  logic                    lsu_is_store_i,         // this translation was triggered by a store
     // PTW memory interface
-    input  dcache_rsp_t             rsp_port_i,
-    output dcache_req_t             req_port_o,
-
+    output logic                    mmu_dmem__req_o,
+    input  logic                    dmem_mmu__rsp_i,
+    output dcache_req_t             mmu_dmem__req_bits_o,
+    input  dcache_rsp_t             dmem_mmu__rsp_bits_i,  
 
     // to TLBs, update logic
     output tlb_update_t             itlb_update_o,
@@ -99,16 +100,16 @@ module cva6_ptw
     assign ptw_active_o    = (state_q != IDLE);
     assign walking_instr_o = is_instr_ptw_q;
     // directly output the correct physical address
-    assign req_port_o.addr_inx  = (ptw_pptr_q[DCACHE_TAG_LSB-1:0] >> DCACHE_DATA_WTH) << DCACHE_DATA_WTH;
-    assign req_port_o.addr_tag   = ptw_pptr_q[DCACHE_TAG_MSB-1:DCACHE_TAG_LSB];
+    assign mmu_dmem__req_bits_o.addr_inx  = (ptw_pptr_q[DCACHE_TAG_LSB-1:0] >> DCACHE_DATA_WTH) << DCACHE_DATA_WTH;
+    assign mmu_dmem__req_bits_o.addr_tag   = ptw_pptr_q[DCACHE_TAG_MSB-1:DCACHE_TAG_LSB];
     // we are never going to kill this request
-    assign req_port_o.kill      = '0;
+    assign mmu_dmem__req_bits_o.kill      = '0;
     // we are never going to write with the HPTW
-    assign req_port_o.wdata    = 64'b0;
-    assign req_port_o.be        = 8'hff;
-    assign req_port_o.we        = '0;
-    assign req_port_o.size      = 2'b11;
-    assign req_port_o.amo_op    = AMO_NONE;
+    assign mmu_dmem__req_bits_o.wdata     = 64'b0;
+    assign mmu_dmem__req_bits_o.be        = 8'hff;
+    assign mmu_dmem__req_bits_o.we        = '0;
+    assign mmu_dmem__req_bits_o.size      = 2'b11;
+    assign mmu_dmem__req_bits_o.amo_op    = AMO_NONE;
     // -----------
     // TLB Update
     // -----------
@@ -153,7 +154,7 @@ module cva6_ptw
         // default assignments
         // PTW memory interface
         tag_valid_n           = 1'b0;
-        req_port_o.req   = 1'b0;
+        mmu_dmem__req_o       = 1'b0;
         ptw_error_o           = 1'b0;
         itlb_update_o.valid   = 1'b0;
         dtlb_update_o.valid   = 1'b0;
@@ -196,9 +197,9 @@ module cva6_ptw
 
             WAIT_GRANT: begin
                 // send a request out
-                req_port_o.req = 1'b1;
+                mmu_dmem__req_o = 1'b1;
                 // wait for the WAIT_GRANT
-                if (rsp_port_i.ack) begin
+                if (dmem_mmu__rsp_i) begin
                     // send the tag valid signal one cycle later
                     tag_valid_n = 1'b1;
                     state_d     = PTE_LOOKUP;
@@ -325,7 +326,7 @@ module cva6_ptw
             // 1. in the PTE Lookup check whether we still need to wait for an rvalid
             // 2. waiting for a grant, if so: wait for it
             // if not, go back to idle
-            if ((state_q == PTE_LOOKUP && !data_rvalid_q) || ((state_q == WAIT_GRANT) && rsp_port_i.ack))
+            if ((state_q == PTE_LOOKUP && !data_rvalid_q) || ((state_q == WAIT_GRANT) && dmem_mmu__rsp_i))
                 state_d = WAIT_RVALID;
             else
                 state_d = IDLE;
@@ -354,31 +355,13 @@ module cva6_ptw
             tlb_update_asid_q  <= tlb_update_asid_n;
             vaddr_q            <= vaddr_n;
             global_mapping_q   <= global_mapping_n;
-            data_rdata_q       <= rsp_port_i.rdata;
-            data_rvalid_q      <= rsp_port_i.valid;
+            data_rdata_q       <= dmem_mmu__rsp_bits_i.rdata;
+            data_rvalid_q      <= dmem_mmu__rsp_bits_i.valid;
         end
     end
 
 //======================================================================================================================
 // Signals for simulation or probes
 //======================================================================================================================
-
-// (* mark_debug = "true" *) logic[2:0] prb_ptw_state;
-// (* mark_debug = "true" *) logic      prb_ptw_dcache_req;
-
-// assign prb_ptw_state = state_q;
-// assign prb_ptw_dcache_req = req_port_o.req;
-
-// (* mark_debug = "true" *) logic      prb_ptw_ic_acc;
-// (* mark_debug = "true" *) logic      prb_ptw_ic_hit;
-// (* mark_debug = "true" *) logic      prb_ptw_ic_en;
-// (* mark_debug = "true" *) logic      prb_ptw_dc_access;
-// (* mark_debug = "true" *) logic      prb_ptw_dc_en;
-
-// assign prb_ptw_ic_acc = itlb_access_i;
-// assign prb_ptw_ic_hit = itlb_hit_i;
-// assign prb_ptw_dc_access = dtlb_access_i;
-// assign prb_ptw_ic_en = enable_translation_i;
-// assign prb_ptw_dc_en = en_ld_st_translation_i;
 
 endmodule

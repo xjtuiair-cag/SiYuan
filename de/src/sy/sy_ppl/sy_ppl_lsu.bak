@@ -80,20 +80,26 @@ size_e                      size_q;
 mem_opcode_e                opcode_q;
 amo_t                       amo_opcode;
 
-logic                       is_store;
-logic                       is_amo;
-logic                       is_load;
-logic                       misaligned;
-logic [2:0]                 offset;
 logic [2:0]                 offset_q;
 logic [DWTH-1:0]            wr_data;
 logic                       amo_cmd;
 logic                       tlb_hit_dly1;
 //======================================================================================================================
-// other logic
+// Instance
 //======================================================================================================================
+    output  logic                           lsu_mmu__req_o,
+    output  logic[63:0]                     lsu_mmu__vaddr_o,
+    output  logic                           lsu_mmu__is_store_o,
+    input   logic                           mmu_lsu__dtlb_hit_i,
+    input   logic                           mmu_lsu__valid_i,
+    input   logic[63:0]                     mmu_lsu__paddr_i,
+    input   exception_t                     mmu_lsu__ex_i,
+
+assign lsu_mmu__req_o = ppl_dmem__vld_i && !ppl_dmem__kill_i;
+assign lsu_mmu__vaddr_o = {ppl_dmem__addr_i >> 2, 2'h0};
+
+
 // gen write data
-assign offset = ppl_dmem__addr_i[2:0]; 
 assign amo_cmd = (opcode_q == MEM_OP_SC) || (opcode_q == MEM_OP_AMO) || (opcode_q == MEM_OP_LR);
 assign wr_data = ppl_dmem__wdata_i << (8*offset);
 
@@ -104,7 +110,6 @@ assign misaligned = (size_q == SIZE_HALF) ? (addr_q[0] != 1'h0):
                     (size_q == SIZE_WORD) ? (addr_q[1:0] != 2'h0): 
                     (size_q == SIZE_DWORD) ? (addr_q[2:0] != 3'h0) : 1'b0;
 
-assign lsu_mmu__vaddr_o = {addr_q >> 2, 2'h0};
 assign lsu_mmu__is_store_o = (opcode_q == MEM_OP_STORE) || (opcode_q == MEM_OP_ST_FP) || (opcode_q == MEM_OP_SC) || (opcode_q == MEM_OP_AMO);
 // dcache interface
 assign lsu_dcache__req_o.addr_inx   =   addr_q[DCACHE_TAG_LSB-1:0];

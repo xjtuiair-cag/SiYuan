@@ -61,6 +61,7 @@ module sy_dcache_mem
   logic [DCACHE_WAY_NUM-1:0]                              data_ram_wen;                   
   logic [DCACHE_TAG_LSB-DCACHE_DATA_WTH-1:0]              data_ram_raddr;      // used to select data array
   logic [DCACHE_TAG_LSB-DCACHE_DATA_WTH-1:0]              data_ram_waddr;      // used to select data array
+  logic [DCACHE_DATA_SIZE-1:0]                            data_ram_wstrb; 
   logic [DCACHE_WAY_NUM-1:0][DCACHE_DATA_SIZE*8-1:0]      data_ram_rdata;            
   logic [DCACHE_DATA_SIZE*8-1:0]                          data_ram_wdata;            
 
@@ -140,10 +141,11 @@ module sy_dcache_mem
   );
 
   assign data_ram_waddr               = data_req_bits.idx[DCACHE_TAG_LSB-1:DCACHE_DATA_WTH];
+  assign data_ram_wstrb               = data_req_bits.wstrb;
   assign data_ram_wdata               = data_req_bits.wr_data;
   assign data_ram_raddr               = data_req_bits.idx[DCACHE_TAG_LSB-1:DCACHE_DATA_WTH];
-  assign data_rsp_bits_o[0].rd_data   = data_ram_rdata[data_rd_way_idx_dly];
-  assign data_rsp_bits_o[1].rd_data   = data_ram_rdata[data_rd_way_idx_dly];
+  assign data_rsp_bits_o[0].rd_data   = data_ram_rdata;
+  assign data_rsp_bits_o[1].rd_data   = data_ram_rdata;
 
   assign tag_array_waddr          = tag_req_bits.idx[DCACHE_TAG_LSB-1:DCACHE_BLOCK_WTH];
   assign tag_array_wdata          = tag_req_bits.wr_tag;
@@ -171,7 +173,7 @@ module sy_dcache_mem
       .we_i                       (data_ram_wen[i]      ),          
       .waddr_i                    (data_ram_waddr       ),             
       .wdata_i                    (data_ram_wdata       ),             
-      .wstrb_i                    (8'hff                ),             
+      .wstrb_i                    (data_ram_wstrb       ),             
       .rd_clk_i                   (clk_i                ),              
       .re_i                       (data_ram_ren[i]      ),          
       .raddr_i                    (data_ram_raddr       ),             

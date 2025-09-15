@@ -49,10 +49,20 @@ module sy_L1_cache
   // data requests
   input  fetch_req_t                      fetch_icache__req_i,
   output fetch_rsp_t                      icache_fetch__rsp_o,
+  // =====================================
+  // [D cache req from ppl]
+  input  logic                            ppl_dmem__kill_i,
+  input  logic                            ppl_dmem__req_i,
+  output logic                            dmem_ppl__rsp_o,
+  input  dcache_req_t                     ppl_dmem__req_bits_i,
+  output dcache_rsp_t                     dmem_ppl__rsp_bits_o,  
+  // =====================================
+  // [D cache req from mmu]
+  input  logic                            mmu_dmem__req_i,
+  output logic                            dmem_mmu__rsp_o,
+  input  dcache_req_t                     mmu_dmem__req_bits_i,
+  output dcache_rsp_t                     dmem_mmu__rsp_bits_o,  
 
-  input  dcache_req_t [REQ_PORT-1:0]      dcache_req_i,
-  output dcache_rsp_t [REQ_PORT-1:0]      dcache_rsp_o,
-  
   TL_BUS.Slave                            slave
 );
 
@@ -132,13 +142,21 @@ module sy_L1_cache
         .rst_i                  (rst_i),         
         .flush_i                (flush_dcache_i),             
         .flush_done_o           (flush_dcache_done_o),
+        .ppl_dmem__kill_i       (ppl_dmem__kill_i),
 
         .cache_miss_o           (dcache_miss_o),                               
 
-        .dcache_req_i           (dcache_req_i),                
-        .dcache_rsp_o           (dcache_rsp_o),                
+        .ppl_dmem__req_i        (ppl_dmem__req_i     ),     
+        .dmem_ppl__rsp_o        (dmem_ppl__rsp_o     ),     
+        .ppl_dmem__req_bits_i   (ppl_dmem__req_bits_i),          
+        .dmem_ppl__rsp_bits_o   (dmem_ppl__rsp_bits_o),            
+                                 
+        .mmu_dmem__req_i        (mmu_dmem__req_i     ),     
+        .dmem_mmu__rsp_o        (dmem_mmu__rsp_o     ),     
+        .mmu_dmem__req_bits_i   (mmu_dmem__req_bits_i),          
+        .dmem_mmu__rsp_bits_o   (dmem_mmu__rsp_bits_o),            
 
-        .dcache_A_valid_o       (dcache_A_valid),                    
+        .dcache_A_valid_o       (dcache_A_valid),
         .dcache_A_ready_i       (dcache_A_ready),                    
         .dcache_A_bits_o        (dcache_A_bits ),                   
 
