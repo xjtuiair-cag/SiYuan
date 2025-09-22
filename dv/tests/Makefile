@@ -40,6 +40,9 @@ tests := benos_test_01 \
        	 benos_test_04 \
        	 benos_test_05 \
        	 dma_test_01  \
+       	 spi_test_01  \
+       	 spi_test_02  \
+       	 spi_test_03  \
 		 linux_test_01 
 
 clean_tests: $(tests)

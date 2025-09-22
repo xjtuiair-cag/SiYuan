@@ -32,6 +32,8 @@ module tb_sy_riscv_tests;
 logic                           clk;
 logic                           rst;
 
+`define DCACHE_CTRL soc_inst.u_sy_inst.L1_cache.i_dcache_inst.dcache_ctrl_inst
+
 sy_soc_sim soc_inst(
     // =====================================
     // [clock & reset]
@@ -81,10 +83,9 @@ end
 initial begin
     res = $fopen("res.txt","w");
     forever begin
-        @(posedge clk iff (soc_inst.u_sy_inst.u_sy_lsu.valid_q == 1'b1 && 
-            soc_inst.u_sy_inst.u_sy_lsu.is_store == 1'b1 && 
-            soc_inst.u_sy_inst.u_sy_lsu.addr_q == wb_addr));
-        if(soc_inst.u_sy_inst.u_sy_lsu.wdata_q == 64'b1) begin
+        @(posedge clk iff (`DCACHE_CTRL.cache_wr_en == 1'b1 && 
+            {`DCACHE_CTRL.dc_req_bits_st2.addr_tag,`DCACHE_CTRL.dc_req_bits_st2.addr_inx} == wb_addr));
+        if(`DCACHE_CTRL.cache_wr_data_st2 == 64'b1) begin
             s = { "\n##########################################################\n"};
             s = {s, "#                ####    #    ####  ####                 #\n"};
             s = {s, "#                #  #   # #   #     #                    #\n"};
@@ -107,8 +108,8 @@ initial begin
             s = {s, "###################### TEST FAILED #######################\n"};
             s = {s, "##########################################################\n"};
             $display("%s",s);
-            $display("TEST FAIL: %h",soc_inst.u_sy_inst.u_sy_lsu.wdata_q);
-            $fwrite(res,"TEST FAIL: %h",soc_inst.u_sy_inst.u_sy_lsu.wdata_q);
+            $display("TEST FAIL: %h",`DCACHE_CTRL.cache_wr_data_st2);
+            $fwrite(res,"TEST FAIL: %h",`DCACHE_CTRL.cache_wr_data_st2);
         end
         $finish;
     end

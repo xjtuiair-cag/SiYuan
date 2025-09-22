@@ -17,7 +17,8 @@ ips := xlnx_axi_clock_converter.xci  	\
 	   div64x64_d20_s.xci				\
 	   div64x64_d20_us.xci				\
 	   sdp_2048x64sd1.xci				\
-	   sdp_512x64sd1.xci						
+	   sdp_512x64sd1.xci				\
+	   sp_512x64sd1.xci						
 
 
 ips-target := $(addprefix $(ip-dir)/, $(basename $(ips)))

@@ -58,7 +58,6 @@ util := de/utils/rr_arb_tree.sv                \
 		de/utils/fan_ctrl.sv                   \
 		de/utils/rstgen_bypass.sv              \
 		de/utils/rstgen.sv                     \
-		de/utils/sdp_bram_fifo.sv              \
 		de/utils/fifo_v3.sv                              					
 util := $(addprefix $(root-dir), $(util))
 
@@ -67,6 +66,7 @@ ip := 	$(filter-out de/ip/fpu/src/fpnew_pkg.sv, $(wildcard de/ip/fpu/src/*.sv)) 
 		$(wildcard de/ip/fpu/src/fpu_div_sqrt_mvp/hdl/*.sv))                					\
 		$(wildcard de/ip/sram/*.sv)                                            					\
 		$(wildcard de/ip/ethernet/*.sv)                                            				\
+		$(wildcard de/ip/axi_spi_master/*.sv)                                            		\
 		de/ip/rv_plic/rtl/plic_regmap.sv                                            			\
 		de/ip/rv_plic/rtl/rv_plic_gateway.sv                                            		\
 		de/ip/rv_plic/rtl/rv_plic_target.sv                                            			\
@@ -93,6 +93,9 @@ src :=  $(wildcard de/src/sy/sy_ppl/sy_ppl_fet/sy_ppl_br_pred/*.sv)             
 		$(wildcard de/src/sy/sy_plic/*.sv)              								\
 		$(wildcard de/src/sy/sy_mmu/*.sv)              									\
 		$(wildcard de/src/sy/sy_dma/*.sv)              									\
+		$(wildcard de/src/sy/sy_spi/*.sv)              									\
+		$(wildcard de/src/sy/sy_gpio/*.sv)              								\
+		$(wildcard de/src/sy/sy_uart/*.sv)              								\
 		$(wildcard de/src/sy/*.sv)              												
 src := $(addprefix $(root-dir), $(src))
 
@@ -107,6 +110,8 @@ endif
 fpga_src := $(addprefix $(root-dir), $(fpga_src))
 
 sim_src := 	$(wildcard de/ip/bootrom_sim/*.sv)	\
+			$(wildcard de/ip/sd_device/rtl/verilog/*.v)	\
+			$(wildcard de/ip/wb_ram/rtl/verilog/*.v)	\
 			de/ip/sram/sim/sdp_sram_with_strob.sv \
 			de/ip/uart_sim/UART_rec.sv \
 			de/src/sy_soc_sim.sv	
@@ -120,6 +125,9 @@ else ifeq ($(SIM_TYPE),linux)
 else ifeq ($(SIM_TYPE),dma)
 	sim_src += dv/tb/axi_mem_dma.sv \
 				dv/tb/tb_sy_dma.sv 
+else ifeq ($(SIM_TYPE),spi)
+	sim_src += dv/tb/axi_mem_spi.sv \
+				dv/tb/tb_sy_spi.sv 
 else ifeq ($(SIM_TYPE),riscv_test)# TODO
 	sim_src += dv/tb/axi_mem_riscv_tests.sv \
 				dv/tb/tb_sy_riscv_tests.sv 

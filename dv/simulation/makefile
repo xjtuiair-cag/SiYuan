@@ -5,7 +5,7 @@ SOFTWARE_DIR   = ${DV_HOME}/tests/${TEST}
 RISCV_TEST_DIR = ${DV_HOME}/tests/riscv-tests
 RISCV_TEST 	   = ${RISCV_TEST_DIR}/isa/${TEST}
 PYTHON_SCRIPT  = ${RISCV_TEST_DIR}/../gen_verilog_data.py
-MAKE_SCRIPT    = ${RISCV_TEST_DIR}/../makefile
+MAKE_SCRIPT    = ${RISCV_TEST_DIR}/../Makefile
 REF_DIR        = ${SOFTWARE_DIR}/ref
 SIMULATION_DIR = ${DV_HOME}/simulation/works
 LOG_NAME       = log
@@ -84,6 +84,24 @@ sy_sim_dma: prepare_log_dir prepare_comp_dir
 		+vcs+initreg+random +vcs+loopreport +vpi \
 		-l elaborate.log
 
+sy_sim_spi: prepare_log_dir prepare_comp_dir
+	cd ${COMP_DIR}; \
+	vlogan -full64 +v2k -sverilog -ntb_opts -debug_all -debug_access+all -sim_res=1ps -timescale=1ns/1ps -nc \
+		-kdb +lint=TFIPC-L +vcs+initreg+random -override_timescale=1ns/1ps +vcs+loopreport \
+		-cm line+branch+cond+tgl+fsm+assert \
+		+define+PLATFORM_SIM=1 \
+		+incdir+${DE_HOME}/inc \
+		+incdir+${DE_HOME}/ip/sd_device/rtl/verilog \
+		-f ${DV_HOME}/vc/source_list.vc \
+		-l compile.log; \
+	vcs -full64 -o ${COMP_DIR}/sy.simv -ntb_opts -debug_all -debug_region+cell+encrypt +vcs+dumparrays \
+		-LDFLAGS -Wl,--no-as-needed \
+		-cm line+branch+cond+tgl+fsm+assert \
+		-debug_acc+all+dmptf  -debug_access+all -debug_region+cell+encrypt -top tb_sy_spi +lint=TFIPC-L \
+		+vcs+initreg+random +vcs+loopreport +vpi \
+		-l elaborate.log
+
+
 sy_sim_riscv_test: prepare_log_dir prepare_comp_dir
 	cd ${COMP_DIR}; \
 	vlogan -full64 +v2k -sverilog -ntb_opts -debug_all -debug_access+all -sim_res=1ps -timescale=1ns/1ps -nc \
@@ -113,6 +131,12 @@ run_linux: prepare_log_dir prepare_comp_dir prepare_sim_dir prepare_ref_dir
 	-l run.log +ntb_random_seed=${SEED} $(GUI)
 
 run_dma: prepare_log_dir prepare_comp_dir prepare_sim_dir prepare_ref_dir software
+	cp ${SOFTWARE_DIR}/output/* ${SIM_DIR}/; \
+	cd ${SIM_DIR}; \
+	${COMP_DIR}/sy.simv +vcs+initreg+0 -cm line+branch+cond+tgl+fsm+assert \
+	-l run.log +ntb_random_seed=${SEED} $(GUI)
+
+run_spi: prepare_log_dir prepare_comp_dir prepare_sim_dir prepare_ref_dir software
 	cp ${SOFTWARE_DIR}/output/* ${SIM_DIR}/; \
 	cd ${SIM_DIR}; \
 	${COMP_DIR}/sy.simv +vcs+initreg+0 -cm line+branch+cond+tgl+fsm+assert \
