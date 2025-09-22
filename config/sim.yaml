@@ -1,6 +1,6 @@
 Core_num: 1
 Uart: True # Uart must be true
-SPI: False 
+SPI: True
 GPIO: False
 DMA: True
 NPU: False

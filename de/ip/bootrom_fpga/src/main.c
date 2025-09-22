@@ -10,10 +10,10 @@ int copy(){
         print_uart("could not initialize sd... exiting\r\n");
         return -1;
     }
-
-    print_uart("sd initialized!\r\n");
+    // flush D cache
+    __asm__ volatile("fence.i"); 
     // copy 16M data from sd to ddr
-    int res = sd_copy(0x800, 0x80000000, 2 * 16384 * 512);
+    int res = sd_read_data_with_dma(0x80000000, 0x800, 2 * 16384);
 
     if (res != 0)
     {
@@ -24,7 +24,7 @@ int copy(){
         return -2;
     }
 
-    print_uart("SD copy successful!\r\n");
+    print_uart("Copy Linux image from SD card to DDR successful!\r\n");
     return 0;            
 }
 
@@ -33,6 +33,7 @@ int main()
     init_uart(50000000, 115200);
     print_uart("Welcome to SiYuan!\r\n");
     // copy linux image from SD card to DDR 
+    Dma_init();
     copy();
 
     return 0;

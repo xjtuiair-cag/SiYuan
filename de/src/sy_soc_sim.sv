@@ -37,7 +37,13 @@ module sy_soc_sim
     input   logic                           rst_i,                      
     // =====================================
     // [ctrl & status]
-    input   logic[AWTH-1:0]                 boot_addr_i
+    input   logic[AWTH-1:0]                 boot_addr_i,
+    // SPI
+    output logic                            spi_mosi    ,
+    input  logic                            spi_miso    ,
+    output logic                            spi_ss      ,
+    output logic                            spi_clk_o   
+
 );
 
 //======================================================================================================================
@@ -395,42 +401,19 @@ module sy_soc_sim
 //======================================================================================================================
 // SPI
 //======================================================================================================================
-    if (SPI_EN) begin
-        sy_spi spi(
-            .clk_i          (clk_i),    
-            .rst_i          (rst_i),    
+    sy_spi spi(
+        .clk_i          (clk_i),    
+        .rst_i          (rst_i),    
     
-            .irq_o          (irq_sources[1]),    
+        .irq_o          (irq_sources[1]),    
     
-            .spi_clk_o      (spi_clk_o),         
-            .spi_mosi       (spi_mosi),         
-            .spi_miso       (spi_miso),         
-            .spi_ss         (spi_ss),         
+        .spi_clk_o      (spi_clk_o),         
+        .spi_mosi       (spi_mosi),         
+        .spi_miso       (spi_miso),         
+        .spi_ss         (spi_ss),         
     
-            .master         (phri_bus_slave[SPI])
-        );       
-    end else begin
-        assign spi_mosi     = '0;
-        assign spi_ss       = '0;
-        assign spi_clk_o    = '0;
-    end
-
-//======================================================================================================================
-// GPIO
-//======================================================================================================================
-    if (GPIO_EN) begin
-        sy_gpio gpio(
-            .clk_i              (clk_i),       
-            .rst_i              (rst_i),     
-
-            .leds_o             (led),      
-            .dip_switches_i     (sw),              
-
-            .master             (phri_bus_slave[GPIO])
-        );
-    end else begin
-        assign led = '0;
-    end
+        .master         (phri_bus_slave[SPI])
+    );       
 //======================================================================================================================
 // NPU 
 //======================================================================================================================

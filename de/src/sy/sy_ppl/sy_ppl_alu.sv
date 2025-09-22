@@ -298,6 +298,7 @@ logic                               is_store;
 logic                               is_amo;
 logic                               is_load;
 logic                               misaligned;
+logic                               no_mdu_block;        
 //======================================================================================================================
 // Instance
 //======================================================================================================================
@@ -396,7 +397,8 @@ assign ex0_rdst_from_alsc = (dec_alu__rdst_src_sel_i == RDST_SRC_FPU) ? dec_alu_
 
 // send address translation request to MMU 
 // if TLB hit, hit siganl will be back at the same clock cycle
-assign ppl_mmu__req_o = dec_alu__ex0_act_i && mem_accpt && (dec_alu__instr_cls_i == INSTR_CLS_MEM) && (dec_alu__mem_opcode_i != MEM_OP_FENCE);
+assign no_mdu_block = !((mdu_alu__mul_wb_busy_i || mdu_alu__div_wb_busy_i) && mem_act);
+assign ppl_mmu__req_o = dec_alu__ex0_act_i && no_mdu_block && (dec_alu__instr_cls_i == INSTR_CLS_MEM) && (dec_alu__mem_opcode_i != MEM_OP_FENCE);
 // assign ppl_mmu__req_o = dec_alu__ex0_act_i && mem_accpt && (dec_alu__instr_cls_i == INSTR_CLS_MEM) && (dec_alu__mem_opcode_i != MEM_OP_FENCE);
 assign ppl_mmu__vaddr_o = {ex0_dmem_addr >> 2, 2'h0};
 assign ppl_mmu__is_store_o = (ex0_dmem_opcode == MEM_OP_STORE) 
@@ -709,8 +711,8 @@ assign alu_csr__sret_o = sys_instr_avail && wb_sys_opcode == SYS_OP_SRET;
 assign alu_csr__dret_o = sys_instr_avail && wb_sys_opcode== SYS_OP_DRET;
 assign alu_ctrl__sfence_vma_o = sys_instr_avail && wb_sys_opcode== SYS_OP_SFENCE_VMA;
 assign alu_ctrl__fencei_en_o = sys_instr_avail && wb_sys_opcode == SYS_OP_FENCEI;
-assign alu_ctrl__fence_en_o = (wb_act && wb_instr_cls == INSTR_CLS_MEM) && (wb_dmem_opcode == MEM_OP_FENCE);
-// assign alu_ctrl__fence_en_o = 1'b0; 
+// assign alu_ctrl__fence_en_o = (wb_act && wb_instr_cls == INSTR_CLS_MEM) && (wb_dmem_opcode == MEM_OP_FENCE);
+assign alu_ctrl__fence_en_o = 1'b0; 
 //======================================================================================================================
 // FPU interface 
 //======================================================================================================================

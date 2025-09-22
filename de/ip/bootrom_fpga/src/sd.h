@@ -4,6 +4,7 @@
 
 #define SD_CMD_STOP_TRANSMISSION 12
 #define SD_CMD_READ_BLOCK_MULTIPLE 18
+#define SD_CMD_WRITE_BLOCK_MULTIPLE 25
 #define SD_DATA_TOKEN 0xfe
 #define SD_COPY_ERROR_CMD18 -1
 #define SD_COPY_ERROR_CMD18_CRC -2
@@ -15,6 +16,6 @@
 
 int init_sd();
 
-void put_sdcard_spi_mode();
-
-int sd_copy(uint32_t src_lba, uint32_t ddr_addr, uint32_t size);
+int sd_read_data(uint8_t * dst, uint32_t sd_addr, uint32_t size);
+int sd_write_data_singel_blk(uint8_t * src, uint32_t sd_addr );
+int sd_read_data_with_dma(uint8_t * dst, uint32_t sd_addr, uint32_t size);

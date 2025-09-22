@@ -112,7 +112,7 @@ fpu_wrap fpu(
    .fpu_rm_i               (dec_fpu__rm_i),      
    .fpu_frm_i              (csr_fpu__frm_i),       
    .fpu_prec_i             (csr_fpu__prec_i),        
-   .fpu_trans_id_o         ('0),            
+   .fpu_trans_id_o         (),            
    .result_o               (fpu_dec__result_o),      
    .fpu_valid_o            (fpu_dec__valid_o),         
    .fpu_exception_o        (fpu_exception)         

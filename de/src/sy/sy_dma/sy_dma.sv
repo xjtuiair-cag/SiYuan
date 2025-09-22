@@ -50,18 +50,21 @@ module sy_dma
     localparam  BURST_LENGTH    = BASE_ADDR + 64'h18;
     localparam  TRANS_CTRL      = BASE_ADDR + 64'h1C;
     localparam  TRANS_MODE      = BASE_ADDR + 64'h20;
+    localparam  STATUS          = BASE_ADDR + 64'h24;
 
-    localparam  START_LOC       = 0;
-    localparam  DONE_LOC        = 1;
-    localparam  BUSY_LOC        = 2;
+    localparam  DONE_LOC        = 0;
+    localparam  BUSY_LOC        = 1;
+    localparam  RD_PENDING_LOC  = 2;
+    localparam  WR_PENDING_LOC  = 3;
 
     localparam  ONE_TRANSFER    = 8;
     localparam  SOURCE_ID       = {SOURCE, 1'b0};
 //======================================================================================================================
 // wire & reg declaration
 //======================================================================================================================
-    typedef enum logic[2:0] {READ_IDLE, WRITE_SPI, WAIT, READ_REQ, WAIT_READ, GRANT_ACK} read_state_e;
-    typedef enum logic[1:0] {WRITE_IDLE, WRITE,SEND_DATA,WAIT_WRITE} write_state_e;
+    typedef enum logic[2:0] {READ_IDLE, READ_REQ, READ_FIFO_SWITCH, WAIT_READ, GRANT_ACK, RD_PENDING} read_state_e;
+    typedef enum logic[2:0] {WRITE_IDLE, WRITE, WRITE_FIFO_SWITCH, SEND_DATA,WAIT_WRITE,WR_PENDING} write_state_e;
+    typedef enum logic[0:0] {IDLE,BUSY} fifo_state_e;
     read_state_e    read_state_d, read_state_q;
     write_state_e   write_state_d, write_state_q;
 
@@ -74,17 +77,39 @@ module sy_dma
     logic [31:0]                            src_base_addr_d, src_base_addr_q;
     logic [31:0]                            des_base_addr_d, des_base_addr_q;
     logic [31:0]                            data_volume_d, data_volume_q;
-    logic [7:0]                             burst_len_d, burst_len_q;
+    logic [7:0]                             rd_burst_len_d, rd_burst_len_q;
+    logic [7:0]                             wr_burst_len_d, wr_burst_len_q;
     logic [31:0]                            trans_ctrl_d, trans_ctrl_q;
-    logic                                   trans_mode_d, trans_mode_q;
+    logic                                   dma_start_d, dma_start_q;
+    logic [31:0]                            trans_mode_d, trans_mode_q;
+    logic [31:0]                            status_d, status_q;
+    logic                                   rd_reset_done,wr_reset_done;        
+    logic                                   read_pending;
+    logic                                   write_pending;
+    logic                                   set_rd_pending;
+    logic                                   set_wr_pending;
+    logic[1:0]                              reset_d,reset_q;
+    logic                                   read_burst_type; // 0 for increment, 1 for fixed
+    logic                                   write_burst_type; // 0 for increment, 1 for fixed
+    logic                                   read_en_realign;           
+    logic                                   write_en_realign;           
+    logic                                   rd_single_step;
+    logic                                   wr_single_step;
+    fifo_state_e[1:0]                       fifo_status_d,fifo_status_q;        
+    logic                                   read_use_fifo_d,read_use_fifo_q;
+    logic                                   write_use_fifo_d,write_use_fifo_q;
 
-    logic                                   fifo_full;
-    logic                                   fifo_afull;
-    logic                                   fifo_empty;
-    logic                                   fifo_push;
-    logic                                   fifo_pop;
-    logic [DATA_WIDTH-1:0]                  fifo_data_in;
-    logic [DATA_WIDTH-1:0]                  fifo_data_out;
+    logic [1:0]                             fifo_full;
+    logic [1:0]                             fifo_afull;
+    logic [1:0]                             fifo_empty;
+    logic [1:0]                             fifo_push;
+    logic [1:0]                             fifo_pop;
+    logic [1:0][DATA_WIDTH-1:0]             fifo_data_in;
+    logic [1:0][DATA_WIDTH-1:0]             fifo_data_out;
+    logic [DATA_WIDTH-1:0]                  fifo_data_out_mux;
+    logic [DATA_WIDTH-1:0]                  rdata_realign;
+    logic [DATA_WIDTH-1:0]                  wdata_realign;
+    logic [DATA_WIDTH-1:0]                  wdata;
 
     logic [ADDR_WIDTH-1:0]                  read_addr_d, read_addr_q; 
     logic [ADDR_WIDTH-1:0]                  write_addr_d, write_addr_q; 
@@ -103,14 +128,6 @@ module sy_dma
     logic [tl_pkg::SINK_WTH-1:0]            sink_d, sink_q;
     logic                                   lock_data,lock_data_dly;
     logic[DATA_WIDTH-1:0]                   send_data_d,send_data_q;
-    logic[7:0]                              load_data_be_d,load_data_be_q;        
-    logic[63:0]                             load_data_d,load_data_q;        
-    logic                                   load_status_d,load_status_q;
-    logic[9:0]                              block_cnt_d,block_cnt_q;
-    logic                                   find_block_d,find_block_q;
-    logic                                   read_crc_d,read_crc_q;
-    logic                                   read_crc_cnt_d,read_crc_cnt_q;
-    logic[3:0]                              wait_cnt_d,wait_cnt_q;
 //======================================================================================================================
 // Instance
 //======================================================================================================================
@@ -136,18 +153,36 @@ module sy_dma
         .rdata_i            ( dma_rdata     )
     );
 
-    sdp_bram_fifo fifo (
-        .clk_i              (clk_i),                 
-        .rst_i              (rst_i),                 
-        .full_o             (fifo_full),                  
-        .afull_o            (fifo_afull),                  
-        .empty_o            (fifo_empty),                  
-        .data_i             (fifo_data_in),                  
-        .data_o             (fifo_data_out),                  
-        .push_i             (fifo_push),                  
-        .pop_i              (fifo_pop)               
-    );
+    // ping-pong buffer
+    for (genvar i = 0; i < 2; i = i + 1) begin
+        assign fifo_data_in[i] = read_en_realign ? rdata_realign : slave.d_bits.data;
+        sy_dma_fifo fifo (
+            .clk_i              (clk_i),                 
+            .rst_i              (rst_i),                 
+            .clr_i              (|reset_q),    
 
+            .full_o             (fifo_full[i]),                  
+            .afull_o            (fifo_afull[i]),                  
+            .empty_o            (fifo_empty[i]),                  
+
+            .data_i             (fifo_data_in[i]),                  
+            .data_o             (fifo_data_out[i]),                  
+            .push_i             (fifo_push[i]),                  
+            .pop_i              (fifo_pop[i])               
+        );       
+    end
+    assign fifo_data_out_mux = fifo_data_out[write_use_fifo_q];
+    assign rdata_realign = {slave.d_bits.data[39:32],slave.d_bits.data[47:40],slave.d_bits.data[55:48],slave.d_bits.data[63:56],
+                            slave.d_bits.data[7:0],  slave.d_bits.data[15:8], slave.d_bits.data[23:16],slave.d_bits.data[31:24]};
+    assign wdata_realign = {fifo_data_out_mux[39:32],
+                            fifo_data_out_mux[47:40],
+                            fifo_data_out_mux[55:48],
+                            fifo_data_out_mux[63:56],
+                            fifo_data_out_mux[7:0],  
+                            fifo_data_out_mux[15:8], 
+                            fifo_data_out_mux[23:16],
+                            fifo_data_out_mux[31:24]};
+    assign wdata = write_en_realign ? wdata_realign : fifo_data_out_mux;
 //======================================================================================================================
 // Control Register
 //======================================================================================================================
@@ -155,9 +190,12 @@ module sy_dma
         src_base_addr_d = src_base_addr_q;
         des_base_addr_d = des_base_addr_q;
         data_volume_d   = data_volume_q;
-        burst_len_d     = burst_len_q;
-        trans_ctrl_d    = trans_ctrl_q;
+        rd_burst_len_d  = rd_burst_len_q;
+        wr_burst_len_d  = wr_burst_len_q;
+        dma_start_d     = dma_start_q;
         trans_mode_d    = trans_mode_q;
+        reset_d         = reset_q;
+        status_d        = status_q;
         dma_rdata       = '0;
         if (dma_en) begin
             unique case (dma_addr)
@@ -174,34 +212,60 @@ module sy_dma
                     dma_rdata = data_volume_q;
                 end
                 BURST_LENGTH: begin
-                    burst_len_d = dma_we ? dma_wdata : burst_len_q;
-                    dma_rdata = burst_len_q;
+                    rd_burst_len_d = dma_we ? dma_wdata[7:0]  : rd_burst_len_q;
+                    wr_burst_len_d = dma_we ? dma_wdata[15:8] : wr_burst_len_q;
+                    dma_rdata = {wr_burst_len_q,rd_burst_len_q};
                 end
                 TRANS_CTRL: begin
-                    trans_ctrl_d = dma_we ? dma_wdata : trans_ctrl_q;
-                    dma_rdata = trans_ctrl_q;
+                    dma_start_d = dma_we ? dma_wdata[0] : dma_start_q;
+                    reset_d     = dma_we ? dma_wdata[2:1] : reset_q;
+                    // trans_ctrl_d = dma_we ? dma_wdata : trans_ctrl_q;
+                    dma_rdata = {reset_q,dma_start_q};
                 end
-                // mode 0 : normal mode // mode 1 : spi mode
                 TRANS_MODE: begin
-                    trans_mode_d = dma_we ? dma_wdata[0] : trans_mode_q;
+                    trans_mode_d = dma_we ? dma_wdata : trans_mode_q;
                     dma_rdata = trans_mode_q;
+                end
+                STATUS: begin
+                    status_d = dma_we ? dma_wdata : status_q;                   
+                    dma_rdata = status_q;
                 end
                 default: ;
             endcase    
         end
-        if (set_done) begin
-            trans_ctrl_d[DONE_LOC]    = 1'b1;
-            trans_ctrl_d[START_LOC]   = 1'b0;
-            trans_ctrl_d[BUSY_LOC]    = 1'b0;
+        if (set_done || rd_reset_done || wr_reset_done) begin
+            status_d[DONE_LOC]    = 1'b1;
+            status_d[BUSY_LOC]    = 1'b0;
+            dma_start_d = 1'b0;
         end
         if (set_busy) begin
-            trans_ctrl_d[BUSY_LOC]    = 1'b1;
+            status_d[BUSY_LOC]    = 1'b1;
         end
+        if (rd_reset_done) begin
+            reset_d[0] = 1'b0;
+        end
+        if (wr_reset_done) begin
+            reset_d[1] = 1'b0;
+        end
+        if (set_rd_pending) begin
+            status_d[RD_PENDING_LOC] = 1'b1;
+        end 
+        if (set_wr_pending) begin
+            status_d[WR_PENDING_LOC] = 1'b1;
+        end 
     end
 
     assign src_cacheable = is_cacheable(src_base_addr_q);
     assign des_cacheable = is_cacheable(des_base_addr_q);
-    assign start_dma = trans_ctrl_q[START_LOC];
+    assign start_dma = dma_start_q;
+    assign read_en_realign  = trans_mode_q[0];
+    assign write_en_realign = trans_mode_q[1];
+    assign read_burst_type  = trans_mode_q[2];
+    assign write_burst_type = trans_mode_q[3];
+    assign rd_single_step   = trans_mode_q[4];
+    assign wr_single_step   = trans_mode_q[5];
+    assign read_pending     = status_q[RD_PENDING_LOC];
+    assign write_pending    = status_q[WR_PENDING_LOC];
 //======================================================================================================================
 // FSM
 //======================================================================================================================
@@ -209,8 +273,8 @@ module sy_dma
         // default assignment
         read_state_d        = read_state_q;
         write_state_d       = write_state_q;
-        fifo_push           = 1'b0;
-        fifo_pop            = 1'b0;
+        fifo_push           = 2'b0;
+        fifo_pop            = 2'b0;
 
         read_addr_d         = read_addr_q;
         write_addr_d        = write_addr_q;
@@ -218,15 +282,9 @@ module sy_dma
         left_write_data_d   = left_write_data_q;
         read_trans_cnt_d    = read_trans_cnt_q;
         write_trans_cnt_d   = write_trans_cnt_q;
-        load_data_be_d      = load_data_be_q;
-        load_data_d         = load_data_q;
-        load_status_d       = load_status_q;
-        // TODO
-        block_cnt_d         = block_cnt_q;
-        find_block_d        = find_block_q;
-        read_crc_d          = read_crc_q;
-        read_crc_cnt_d      = read_crc_cnt_q;
-        wait_cnt_d          = wait_cnt_q;
+        read_use_fifo_d     = read_use_fifo_q;
+        write_use_fifo_d    = write_use_fifo_q;
+        fifo_status_d       = fifo_status_q;
 
         release_addr_d      = release_addr_q;
         slave.a_valid       = 1'b0;
@@ -236,113 +294,88 @@ module sy_dma
         read_ready          = 1'b0;
         write_ready         = 1'b0;
 
-        set_done          = 1'b0;
-        set_busy          = 1'b0;
+        set_done            = 1'b0;
+        set_busy            = 1'b0;
 
         lock_data           = 1'b0;
+        rd_reset_done       = 1'b0;
+        wr_reset_done       = 1'b0;
+        set_rd_pending      = 1'b0;
+        set_wr_pending      = 1'b0;
         // read logic 
         case (read_state_q)
             READ_IDLE: begin
-                if (start_dma && write_state_q == WRITE_IDLE) begin
-                    set_busy = 1'b1;
-                    // read_state_d = READ_REQ;
-                    read_state_d = trans_mode_q ? WRITE_SPI : READ_REQ;
-                    read_addr_d  = src_base_addr_q;
+                if (reset_q) begin
+                    rd_reset_done = 1'b1;
+                end else if (start_dma && write_state_q == WRITE_IDLE) begin
+                    set_busy = 1'b1; // set busy in case new dma request comes
+                    read_addr_d = src_base_addr_q;
                     left_read_data_d = data_volume_q;
-                    load_data_be_d = 8'h01;  
-                    load_status_d = trans_mode_q;
-                    block_cnt_d = '0;
-                    find_block_d = trans_mode_q;
-                    read_crc_d   = 1'b0;    
-                end
-            end
-            WRITE_SPI : begin
-                if (left_read_data_q != 0 || read_crc_q) begin
-                    slave.a_valid = !fifo_afull;
-                    if (slave.a_valid && slave.a_ready) begin
-                        read_state_d = WAIT;
-                        wait_cnt_d = '0;
-                    end
-                end else begin
-                    read_state_d = READ_IDLE;
-                end
-            end
-            WAIT : begin
-                if (wait_cnt_q == 4'h8) begin
-                    read_state_d = READ_REQ;       
-                end else begin
-                    wait_cnt_d = wait_cnt_q + 1;
+                    read_use_fifo_d = 1'b0; // fifo a is in read state
+                    fifo_status_d[read_use_fifo_d] = BUSY; // fifo is busy which means it can not be used by write fsm
+                    read_state_d = rd_single_step ? RD_PENDING : READ_REQ;
+                    set_rd_pending = rd_single_step;
                 end
             end
             READ_REQ: begin
-                if (left_read_data_q != 0 || read_crc_q) begin
-                    slave.a_valid = !fifo_afull;
+                // read data finish
+                if (reset_q) begin
+                    read_state_d = READ_IDLE;
+                    rd_reset_done = 1'b1;
+                end else if (left_read_data_q == 0) begin
+                    read_state_d = READ_IDLE;
+                    fifo_status_d[read_use_fifo_q] = IDLE; // release fifo
+                // fifo is full , we need to switch to another fifo
+                end else if (fifo_full[read_use_fifo_q]) begin 
+                    read_use_fifo_d = ~read_use_fifo_q;
+                    fifo_status_d[read_use_fifo_q] = IDLE; // release fifo
+                    read_state_d = READ_FIFO_SWITCH;
+                // send read request
+                end else begin
+                    slave.a_valid = 1'b1;
                     if (slave.a_valid && slave.a_ready) begin
-                        read_trans_cnt_d = trans_ctrl_q ? 1'b1 : burst_len_q;
+                        read_trans_cnt_d = rd_burst_len_q;
                         read_state_d = WAIT_READ;
                     end
+                end
+            end
+            READ_FIFO_SWITCH: begin
+                if (reset_q) begin
+                    read_state_d = READ_IDLE;
+                    rd_reset_done = 1'b1;
+                // if another fifo is busy, wait until it is ready
+                end else if (fifo_status_q[read_use_fifo_q] == BUSY) begin
+                    read_state_d = READ_FIFO_SWITCH;
                 end else begin
-                    read_state_d = READ_IDLE;    
+                    fifo_status_d[read_use_fifo_q] = BUSY;
+                    read_state_d = READ_REQ;
                 end
             end
             WAIT_READ: begin
-                read_ready = !fifo_full;    
+                read_ready = 1'b1;    
                 if (read_valid && read_ready) begin
-                    if (!trans_mode_q) begin    // normal mode
-                        fifo_push = 1'b1;
-                        left_read_data_d = left_read_data_q - ONE_TRANSFER;
-                        read_addr_d = read_addr_q + ONE_TRANSFER;
-                        if (read_trans_cnt_q == 1) begin
-                           read_state_d = src_cacheable ? GRANT_ACK : READ_REQ;
-                        end else begin
-                           read_trans_cnt_d = read_trans_cnt_q - 1; 
-                        end
-                    end else if (load_status_q) begin
-                        if (slave.d_bits.data[0] == 0) begin
-                            load_status_d = 1'b0;
-                            read_state_d  = READ_REQ;
-                        end else begin
-                            load_status_d = 1'b1;
-                            read_state_d  = READ_REQ;
-                        end
-                    end else begin              // spi mode
-                        if (find_block_q) begin
-                            if (slave.d_bits.data[7:0] == 8'hfe) begin
-                                find_block_d = 1'b0;
-                            end
-                            read_state_d  = WRITE_SPI;
-                            load_status_d = 1'b1;
-                        end else if (read_crc_q) begin
-                            read_state_d = WRITE_SPI;
-                            if (read_crc_cnt_q == 1'b1) begin
-                               read_crc_d = 1'b0; 
-                               find_block_d = 1'b1;
-                            end begin
-                               read_crc_cnt_d = read_crc_cnt_q + 1;
-                            end
-                        end else begin
-                            read_state_d  = WRITE_SPI;
-                            fifo_push = load_data_be_q[7];
-                            load_data_be_d = {load_data_be_q[6:0], load_data_be_q[7]};
-                            load_data_d    = {slave.d_bits.data[39:32],load_data_q[63:8]};
-                            left_read_data_d = left_read_data_q - 1;
-                            // read_addr_d      = load_data_be_q[7] ? (read_addr_q + ONE_TRANSFER)      : read_addr_q;
-                            // read_addr_d      = read_addr_q + ONE_TRANSFER;
-                            load_status_d = 1'b1;
-                            if (block_cnt_q == 10'h1ff) begin
-                                read_crc_d = 1'b1;
-                                read_crc_cnt_d = 0;
-                                block_cnt_d = 0;
-                            end else begin
-                                block_cnt_d = block_cnt_q + 1;
-                            end
-                        end
+                    fifo_push[read_use_fifo_q] = 1'b1;
+                    left_read_data_d = left_read_data_q - ONE_TRANSFER;
+                    // increment read address or unchange
+                    read_addr_d = read_burst_type ? read_addr_q : (read_addr_q + ONE_TRANSFER);
+                    if (read_trans_cnt_q == 1) begin
+                        read_state_d = src_cacheable ? GRANT_ACK : (rd_single_step ? RD_PENDING: READ_REQ);
+                        set_rd_pending = rd_single_step & !src_cacheable;
+                    end else begin
+                        read_trans_cnt_d = read_trans_cnt_q - 1; 
                     end
-                end
+               end
             end
             GRANT_ACK: begin
                 slave.e_valid = 1'b1;
                 if (slave.e_ready) begin
+                    read_state_d = (rd_single_step ? RD_PENDING: READ_REQ);
+                    set_rd_pending = rd_single_step;
+                end
+            end
+            RD_PENDING: begin 
+                // pending bit will be clear by CPU
+                if (!read_pending) begin
                     read_state_d = READ_REQ;
                 end
             end
@@ -351,33 +384,49 @@ module sy_dma
         // write logic 
         case (write_state_q)
             WRITE_IDLE: begin
-                if (start_dma) begin
-                    write_state_d       = WRITE;
+                if (reset_q) begin
+                    write_state_d = WRITE_IDLE;
+                    wr_reset_done = 1'b1;
+                end else if (start_dma) begin
+                    write_state_d       = WRITE_FIFO_SWITCH;
+                    write_use_fifo_d    = 1'b0; // use fifo a
                     write_addr_d        = des_base_addr_q;
                     left_write_data_d   = data_volume_q;
-                    write_trans_cnt_d   = burst_len_q;
+                    write_trans_cnt_d   = wr_burst_len_q;
                     release_addr_d      = des_base_addr_q;
                 end 
             end
             WRITE: begin
-                if (left_write_data_q == 0) begin
+                if (reset_q) begin
+                    write_state_d = WRITE_IDLE;
+                    wr_reset_done = 1'b1;
+                end else if (left_write_data_q == 0) begin
                     write_state_d     = WRITE_IDLE;
                     set_done          = 1'b1;
+                    fifo_status_d[write_use_fifo_q] = IDLE;
                 end else if (write_trans_cnt_q == 0) begin
                     write_state_d = WAIT_WRITE; 
+                end else if (fifo_empty[write_use_fifo_q]) begin
+                    write_state_d = WRITE_FIFO_SWITCH;
+                    write_use_fifo_d = ~write_use_fifo_q;
+                    fifo_status_d[write_use_fifo_q] = IDLE; // release fifo
                 end else begin
-                    if (!fifo_empty) begin
-                        fifo_pop = 1'b1;
-                        write_state_d = SEND_DATA; 
-                        lock_data = 1'b1;
-                    end
-                    // slave.c_valid = !fifo_empty;        
-                    // if (slave.c_valid && slave.c_ready) begin
-                    //     fifo_pop = 1'b1;    
-                    //     left_write_data_d = left_write_data_q - ONE_TRANSFER;
-                    //     write_addr_d = write_addr_q + ONE_TRANSFER;
-                    //     write_trans_cnt_d = write_trans_cnt_q - 1;
-                    // end
+                    fifo_pop[write_use_fifo_q] = 1'b1;
+                    write_state_d = SEND_DATA; 
+                    lock_data = 1'b1;
+                end
+            end
+            WRITE_FIFO_SWITCH: begin
+                if (reset_q) begin
+                    write_state_d = WRITE_IDLE;
+                    wr_reset_done = 1'b1;
+                // wait until another fifo is ready
+                end else if (fifo_status_q[write_use_fifo_q] == BUSY) begin
+                    write_state_d = WRITE_FIFO_SWITCH;
+                end else begin
+                    write_state_d = wr_single_step ? WR_PENDING : WRITE;   
+                    set_wr_pending = wr_single_step;
+                    fifo_status_d[write_use_fifo_q] = BUSY; // use fifo
                 end
             end
             SEND_DATA : begin
@@ -385,7 +434,7 @@ module sy_dma
                 if (slave.c_valid && slave.c_ready) begin
                     // fifo_pop = 1'b1;    
                     left_write_data_d = left_write_data_q - ONE_TRANSFER;
-                    write_addr_d = write_addr_q + ONE_TRANSFER;
+                    write_addr_d = write_burst_type ? write_addr_q : (write_addr_q + ONE_TRANSFER);
                     write_trans_cnt_d = write_trans_cnt_q - 1;
                     write_state_d = WRITE;
                 end
@@ -393,9 +442,16 @@ module sy_dma
             WAIT_WRITE : begin
                 write_ready = 1'b1;    
                 if (write_valid && write_ready) begin
-                    write_state_d = WRITE;
-                    write_trans_cnt_d = burst_len_q;
+                    write_state_d = wr_single_step ? WR_PENDING : WRITE;
+                    set_wr_pending = wr_single_step;
+                    write_trans_cnt_d = wr_burst_len_q;
                     release_addr_d = write_addr_q;
+                end
+            end
+            WR_PENDING: begin 
+                // pending bit will be clear by CPU
+                if (!write_pending) begin
+                    write_state_d = WRITE;
                 end
             end
         endcase
@@ -403,27 +459,20 @@ module sy_dma
 //======================================================================================================================
 // TileLink interface
 //======================================================================================================================
-    always_comb begin
-       if (read_state_q == WRITE_SPI) begin
-            slave.a_bits.opcode = tl_pkg::PutFullData;
-            slave.a_bits.address = 32'h20000068;
-       end else begin
-            slave.a_bits.opcode  = src_cacheable ? tl_pkg::AcquireBlock : tl_pkg::Get;
-            slave.a_bits.address = load_status_q ? 32'h20000064 : read_addr_q;
-       end
-    end
+    assign slave.a_bits.opcode  = src_cacheable ? tl_pkg::AcquireBlock : tl_pkg::Get;
+    assign slave.a_bits.address = read_addr_q;
     assign slave.a_bits.param   = tl_pkg::NtoB; //default value
-    assign slave.a_bits.size    = trans_ctrl_q ? '0 : (burst_len_q - 1); 
+    assign slave.a_bits.size    = rd_burst_len_q - 1; 
     assign slave.a_bits.source  = SOURCE_ID;
-    assign slave.a_bits.mask    = trans_mode_q ? 8'hf : 8'hff;
-    assign slave.a_bits.data    = (read_state_q == WRITE_SPI) ? 8'hff : '0;
+    assign slave.a_bits.mask    = 8'hff;
+    assign slave.a_bits.data    = '0;
     assign slave.a_bits.corrupt = '0;
 
     assign slave.e_bits.sink    = sink_q;
 
     assign slave.c_bits.opcode  = des_cacheable ? tl_pkg::ReleaseData : tl_pkg::PutFullData;
     assign slave.c_bits.param   = tl_pkg::TtoB; //default value
-    assign slave.c_bits.size    = burst_len_q - 1; 
+    assign slave.c_bits.size    = wr_burst_len_q - 1; 
     assign slave.c_bits.source  = SOURCE_ID;
     assign slave.c_bits.address = release_addr_q;
     assign slave.c_bits.data    = send_data_d;
@@ -433,8 +482,8 @@ module sy_dma
     assign write_valid = slave.d_valid && (slave.d_bits.opcode inside {tl_pkg::ReleaseAck, tl_pkg::AccessAck});
     assign slave.d_ready = read_ready || write_ready;
 
-    assign fifo_data_in = trans_mode_q ? load_data_d : slave.d_bits.data;
-    assign send_data_d = lock_data_dly ? fifo_data_out : send_data_q;
+
+    assign send_data_d = lock_data_dly ? wdata : send_data_q;
 
     assign sink_d = slave.d_valid && slave.d_ready ? slave.d_bits.sink : sink_q;
 //======================================================================================================================
@@ -447,8 +496,15 @@ module sy_dma
             src_base_addr_q     <= '0;
             des_base_addr_q     <= '0;
             data_volume_q       <= '0;
-            burst_len_q         <= '0;
-            trans_ctrl_q        <= '0;
+            rd_burst_len_q      <= '0;
+            wr_burst_len_q      <= '0;
+            dma_start_q         <= '0;
+            trans_mode_q        <= '0;
+            reset_q             <= '0;
+            status_q            <= '0;
+            fifo_status_q       <= {IDLE, IDLE};
+            read_use_fifo_q     <= '0;
+            write_use_fifo_q    <= '0;
             read_addr_q         <= '0;
             write_addr_q        <= '0;
             left_read_data_q    <= '0;
@@ -457,24 +513,21 @@ module sy_dma
             write_trans_cnt_q   <= '0;
             release_addr_q      <= '0;
             send_data_q         <= '0;
-            trans_mode_q        <= '0;
             lock_data_dly       <= '0;
-            load_data_be_q      <= '0;
-            load_data_q         <= '0;
-            load_status_q       <= '0;
-            block_cnt_q         <= '0;
-            find_block_q        <= '0;
-            wait_cnt_q          <= '0;
-            read_crc_q          <= '0;  
-            read_crc_cnt_q      <= '0;
         end else begin
             read_state_q        <= read_state_d     ;
             write_state_q       <= write_state_d    ;
             src_base_addr_q     <= src_base_addr_d  ;
             des_base_addr_q     <= des_base_addr_d  ;
             data_volume_q       <= data_volume_d    ;
-            burst_len_q         <= burst_len_d      ;
-            trans_ctrl_q        <= trans_ctrl_d    ;
+            rd_burst_len_q      <= rd_burst_len_d   ;
+            wr_burst_len_q      <= wr_burst_len_d   ;
+            dma_start_q         <= dma_start_d      ;
+            reset_q             <= reset_d          ;
+            status_q            <= status_d         ;
+            fifo_status_q       <= fifo_status_d    ;
+            read_use_fifo_q     <= read_use_fifo_d  ;
+            write_use_fifo_q    <= write_use_fifo_d ;
             read_addr_q         <= read_addr_d      ;
             write_addr_q        <= write_addr_d     ;
             left_read_data_q    <= left_read_data_d ;
@@ -483,23 +536,43 @@ module sy_dma
             write_trans_cnt_q   <= write_trans_cnt_d;
             release_addr_q      <= release_addr_d   ;
             send_data_q         <= send_data_d      ;
-            trans_mode_q        <= trans_mode_d;
-            lock_data_dly       <= lock_data;
-            load_data_be_q      <= load_data_be_d;
-            load_data_q         <= load_data_d;
-            load_status_q       <= load_status_d;
-            block_cnt_q         <= block_cnt_d;
-            find_block_q        <= find_block_d;
-            wait_cnt_q          <= wait_cnt_d;
-            read_crc_q          <= read_crc_d;
-            read_crc_cnt_q      <= read_crc_cnt_d;
+            trans_mode_q        <= trans_mode_d     ;
+            lock_data_dly       <= lock_data        ;
         end
     end
-
-
 //======================================================================================================================
 // Signals for simulation or probes
 //======================================================================================================================
 // synopsys translate_off
 // synopsys translate_on
+(* mark_debug = "true" *) logic       prb_dma_a_valid;
+(* mark_debug = "true" *) logic       prb_dma_a_ready;
+(* mark_debug = "true" *) logic[31:0] prb_dma_a_addr;
+
+(* mark_debug = "true" *) logic       prb_dma_d_valid;
+(* mark_debug = "true" *) logic       prb_dma_d_ready;
+(* mark_debug = "true" *) logic[63:0] prb_dma_d_data;
+
+(* mark_debug = "true" *) logic       prb_dma_c_valid;
+(* mark_debug = "true" *) logic       prb_dma_c_ready;
+(* mark_debug = "true" *) logic[63:0] prb_dma_c_data;
+
+assign prb_dma_a_valid  = slave.a_valid;
+assign prb_dma_a_ready  = slave.a_ready;
+assign prb_dma_a_addr   = slave.a_bits.address;
+
+assign prb_dma_d_valid  = slave.d_valid;
+assign prb_dma_d_ready  = slave.d_ready;
+assign prb_dma_d_data   = slave.d_bits.data;
+
+assign prb_dma_c_valid  = slave.c_valid;
+assign prb_dma_c_ready  = slave.c_ready;
+assign prb_dma_c_data   = slave.c_bits.data;
+
+(* mark_debug = "true" *) read_state_e  prb_dma_rd_state;
+(* mark_debug = "true" *) write_state_e prb_dma_wr_state;
+
+assign prb_dma_rd_state = read_state_q;
+assign prb_dma_wr_state = write_state_q;
+
 endmodule

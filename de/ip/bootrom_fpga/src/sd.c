@@ -1,5 +1,6 @@
 #include "sd.h"
 #include "spi.h"
+#include "dma.h"
 #include "uart.h"
 
 // spi full duplex: send 0xff to receive byte
@@ -14,12 +15,12 @@ uint8_t sd_cmd(uint8_t cmd, uint32_t arg, uint8_t crc)
     uint8_t r;
 
     sd_dummy();
-    spi_txrx(0x40 | cmd);
-    spi_txrx(arg >> 24);
-    spi_txrx(arg >> 16);
-    spi_txrx(arg >> 8);
-    spi_txrx(arg);
-    spi_txrx(crc);
+    spi_tx(0x40 | cmd);
+    spi_tx(arg >> 24);
+    spi_tx(arg >> 16);
+    spi_tx(arg >> 8);
+    spi_tx(arg);
+    spi_tx(crc);
 
     n = 100;
     do
@@ -32,7 +33,7 @@ uint8_t sd_cmd(uint8_t cmd, uint32_t arg, uint8_t crc)
     } while (--n > 0);
     if (n == 0)
     {
-        // print_uart("could not find valid sd response\r\n");
+        print_uart("could not find valid sd response\r\n");
     }
     return r;
 }
@@ -53,6 +54,7 @@ int sd_cmd0()
     while (r != 0x1)
     {
         r = sd_cmd(0, 0, 0x95);
+        // spi_rx();
         sd_dummy(); // R1: 1 Byte response
         counter--;
         if (counter <= 0)
@@ -101,11 +103,9 @@ int init_sd()
     spi_init();
 
     print_uart("initializing SD... \r\n");
-    // mostly taken from
-    // https://electronics.stackexchange.com/questions/77417/what-is-the-correct-command-sequence-for-microsd-card-initialization-in-spi
-    // and the siFive implementation:
-    // https://github.com/sifive/freedom-u540-c000-bootloader/blob/09ac8c24dae741e6234e2b1e663784294367e147/sd/sd.c
 
+    // sd card requires 74 clocks to go through the initialization
+    // during this time, MOSI must be high
     // send 10 bytes 0xff
     for (int i = 0; i < 10; i++)
         sd_dummy();
@@ -116,6 +116,7 @@ int init_sd()
         return SD_INIT_ERROR_CMD8;
     if (!sd_acmd41())
         return SD_INIT_ERROR_ACMD41;
+    print_uart("SD initialized !\r\n");
     return 0;
 }
 
@@ -139,16 +140,20 @@ uint16_t crc16(uint16_t crc, uint8_t data)
     return crc;
 }
 
-int sd_copy(uint32_t src_lba, uint32_t ddr_addr, uint32_t size)
+int sd_read_data(uint8_t * dst, uint32_t sd_addr, uint32_t size)
 {
+    volatile uint8_t *p = dst;
+    long i = size;
+    int rc = 0;
+
     uint8_t crc = 0;
     crc = crc7(crc, 0x40 | SD_CMD_READ_BLOCK_MULTIPLE);
-    crc = crc7(crc, (src_lba >> 24) & 0xff);
-    crc = crc7(crc, (src_lba >> 16) & 0xff);
-    crc = crc7(crc, (src_lba >> 8) & 0xff);
-    crc = crc7(crc, src_lba & 0xff);
+    crc = crc7(crc, (sd_addr >> 24) & 0xff);
+    crc = crc7(crc, (sd_addr >> 16) & 0xff);
+    crc = crc7(crc, (sd_addr >> 8) & 0xff);
+    crc = crc7(crc, sd_addr & 0xff);
     crc = (crc << 1) | 1;
-    if (sd_cmd(18, src_lba, crc) != 0x00)
+    if (sd_cmd(18, sd_addr, crc) != 0x00)
     {
         for (int j = 0; j < 8; j++)
             sd_dummy();
@@ -156,10 +161,131 @@ int sd_copy(uint32_t src_lba, uint32_t ddr_addr, uint32_t size)
         print_uart("could not read SD block\r\n");
         return -1;
     }
+    do
+    {   
+        // read sd card until we get a data token with 0xFE
+        // 0xFE means the start of a data block
+        while (sd_dummy() != SD_DATA_TOKEN);
 
-    spi_trans_with_dma(ddr_addr, size);
-    
+        spi_read_block((uint32_t *)p);
+        p += 512;
+
+        sd_dummy();
+        sd_dummy();
+
+        if ((i % 1000) == 0)
+        {
+            print_uart(".");
+        }
+    } while (--i > 0);
+
+    print_uart("\r\n");
     sd_cmd(SD_CMD_STOP_TRANSMISSION, 0, 0x01);
     sd_dummy();
-    return 0;
+    return rc;
+}
+
+int sd_read_data_with_dma(uint8_t * dst, uint32_t sd_addr, uint32_t size)
+{   
+    long i = size;
+    int rc = 0;
+
+    uint8_t crc = 0;
+    crc = crc7(crc, 0x40 | SD_CMD_READ_BLOCK_MULTIPLE);
+    crc = crc7(crc, (sd_addr >> 24) & 0xff);
+    crc = crc7(crc, (sd_addr >> 16) & 0xff);
+    crc = crc7(crc, (sd_addr >> 8) & 0xff);
+    crc = crc7(crc, sd_addr & 0xff);
+    crc = (crc << 1) | 1;
+    if (sd_cmd(18, sd_addr, crc) != 0x00)
+    {
+        for (int j = 0; j < 8; j++)
+            sd_dummy();
+
+        print_uart("could not read SD block\r\n");
+        return -1;
+    }
+    print_uart("START LOADING [");
+    // config DMA 
+    Dma_trans_cfg(SPI_RX_FIFO_REG, (uint32_t)(dst), SPI_FIFO_DEPTH/2, 16, size*512, SPI_RD_TRANS_MODE);
+    // Start DMA. In SPI mode, DMA will pending first until SPI FIFO has data
+    Dma_start();
+    do
+    {   
+        // read sd card until we get a data token with 0xFE
+        // 0xFE means the start of a data block
+        while (sd_dummy() != SD_DATA_TOKEN);
+        // Config SPI controler
+        SPI_trans_cfg((SPI_FIFO_SIZE << 3) << 16,SPI_FIFO_SIZE << 3);
+
+        for (int i=0;i<512;i+=SPI_FIFO_SIZE){
+            // satrt SPI
+            SPI_rd_start();
+            // wait SPI done
+            wait_spi_trans_done();
+            // start DMA
+            clear_read_pending();
+            // pending bit indicate DMA has already read data from SPI fifo
+            while(is_read_pending() == 0);
+        }
+
+        sd_dummy();
+        sd_dummy();
+
+        if ((i % 500) == 0)
+        {
+            print_uart(">");
+        }
+    } while (--i > 0);
+    print_uart("]\r\n");
+
+    clear_read_pending();
+    while(is_Dma_done() == 0);
+    flush_done();
+
+    sd_cmd(SD_CMD_STOP_TRANSMISSION, 0, 0x01);
+    sd_dummy();
+    return rc;
+}
+
+
+// fix 512Byte
+int sd_write_data_singel_blk(uint8_t * src, uint32_t sd_addr)
+{
+    int rc = 0;
+
+    uint8_t res;
+    uint8_t crc = 0;
+    crc = crc7(crc, 0x40 | 24);
+    crc = crc7(crc, (sd_addr >> 24) & 0xff);
+    crc = crc7(crc, (sd_addr >> 16) & 0xff);
+    crc = crc7(crc, (sd_addr >> 8) & 0xff);
+    crc = crc7(crc, sd_addr & 0xff);
+    crc = (crc << 1) | 1;
+    if (sd_cmd(24, sd_addr, crc) != 0x00)
+    {
+        for (int j = 0; j < 8; j++)
+            sd_dummy();
+
+        print_uart("could not read SD block\r\n");
+        return -1;
+    }
+    // write 0xFE to SD card
+    spi_txrx(0xFC);
+    // write block to SD card
+    spi_write_block((uint32_t *)src);
+
+    // write CRC : SPI mode doesn't use crc, so write two 0xFF 
+    sd_dummy();
+    sd_dummy();
+    while (1)
+    {
+        res = sd_dummy();
+        if (res) {
+            break;
+        }
+    }
+    print_uart("\r\n");
+    // spi_txrx(0xFD);
+    return rc;
 }

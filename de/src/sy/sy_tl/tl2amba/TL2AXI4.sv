@@ -187,8 +187,8 @@ module TL2AXI4
     );
     // send data 
     assign fifo_wdata_push = TL_A_valid_i && is_put && ((!fifo_arw_full && !fifo_other_bits_full) || aw_done_q) && !fifo_wdata_full;
-    assign fifo_wdata_in.data   = TL_A_bits_i.data;
-    assign fifo_wdata_in.strb   = TL_A_bits_i.mask;
+    assign fifo_wdata_in.data   = is_low_32bit ? TL_A_bits_i.data : (TL_A_bits_i.data >> 32);
+    assign fifo_wdata_in.strb   = is_low_32bit ? TL_A_bits_i.mask : (TL_A_bits_i.mask >> 4);
     assign fifo_wdata_in.last   = single_trans ? 1'b1 : put_last;
 
     assign AXI_W_bits_o = fifo_wdata_out;

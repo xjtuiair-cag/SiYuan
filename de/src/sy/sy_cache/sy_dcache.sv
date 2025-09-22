@@ -110,7 +110,7 @@ module sy_dcache
   ) dcache_ctrl_inst(
       .clk_i                      (clk_i             ),       
       .rst_i                      (rst_i             ),       
-      .ppl_kill_i                 (ppl_dmem__kill_i  ),       
+      .kill_i                     (ppl_dmem__kill_i  ),       
   
       .cache_miss_o               (cache_miss_o      ),                             
       .allow_probe_o              (allow_probe       ),               

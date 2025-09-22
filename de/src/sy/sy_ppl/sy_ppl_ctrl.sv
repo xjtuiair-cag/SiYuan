@@ -101,7 +101,7 @@ module sy_ppl_ctrl
 //======================================================================================================================
 // Parameters
 //======================================================================================================================
-parameter STALL_CYCLE = 100;
+parameter STALL_CYCLE = 10;
 
 typedef enum logic[4:0] {
     FSM_RESET = 0,
@@ -233,8 +233,8 @@ always_comb begin
                     next_state = FSM_INVALID_IC;
                     ctrl_invld_ic_req = 1'b0;
                 end else if(ctrl_invld_dc_req) begin
-                    // next_state = FSM_STALL;
-                    next_state = FSM_INVALID_DC;
+                    next_state = FSM_STALL;
+                    // next_state = FSM_INVALID_DC;
                     cnt_d = '0;
                     ctrl_invld_dc_req = 1'b0;
                 end else if(ctrl_flush_tlb_req) begin

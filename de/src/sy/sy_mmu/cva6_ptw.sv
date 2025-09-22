@@ -326,10 +326,11 @@ module cva6_ptw
             // 1. in the PTE Lookup check whether we still need to wait for an rvalid
             // 2. waiting for a grant, if so: wait for it
             // if not, go back to idle
-            if ((state_q == PTE_LOOKUP && !data_rvalid_q) || ((state_q == WAIT_GRANT) && dmem_mmu__rsp_i))
-                state_d = WAIT_RVALID;
-            else
-                state_d = IDLE;
+            // if ((state_q == PTE_LOOKUP && !data_rvalid_q) || ((state_q == WAIT_GRANT) && dmem_mmu__rsp_i))
+            //     state_d = WAIT_RVALID;
+            // else
+            //     state_d = IDLE;
+            state_d = IDLE;
         end
     end
 

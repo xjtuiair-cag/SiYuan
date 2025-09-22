@@ -33,7 +33,7 @@ module sy_dcache_ctrl
 )(
     input  logic                            clk_i,
     input  logic                            rst_i,
-    input  logic                            ppl_kill_i,
+    input  logic                            kill_i,
 
     output logic                            cache_miss_o,               
     output logic                            allow_probe_o,
@@ -80,7 +80,7 @@ module sy_dcache_ctrl
 //======================================================================================================================
 // Wire & Reg declaration
 //======================================================================================================================
-  typedef enum logic[2:0] {IDLE,WAIT_KILL,MISS_REQ,MISS_WAIT,REPLAY_REQ,WAIT_PROBE_DONE} state_e;
+  typedef enum logic[2:0] {IDLE,WAIT_KILL,MISS_REQ,MISS_WAIT,REPLAY_REQ,WAIT_PROBE_DONE,KILL_MISS} state_e;
   state_e state_d, state_q;
 
   logic [DCACHE_WAY_NUM-1:0]                      tag_match;
@@ -381,7 +381,7 @@ module sy_dcache_ctrl
           cache_sc_fail_st2<= `TCQ 1'b0;
           cacheable_st2    <= `TCQ 1'b0;
       end else begin
-          act_st2          <= `TCQ act_st1 && (cache_hit || !cacheable && replay_req_st1) && !(ppl_kill_i && req_src_st1 == PPL);
+          act_st2          <= `TCQ act_st1 && (cache_hit || !cacheable && replay_req_st1) && !kill_i;
           dc_req_bits_st2.addr_inx  <= `TCQ dc_req_bits_st1.addr_inx;
           dc_req_bits_st2.addr_tag  <= `TCQ tag_st1;
           dc_req_bits_st2.wdata     <= `TCQ dc_req_bits_st1.wdata;
@@ -409,7 +409,7 @@ module sy_dcache_ctrl
   assign dmem_mmu__rsp_bits_o.valid = (cache_hit || act_st1 && !cacheable && replay_req_st1) && req_src_st1 == MMU;
   assign dmem_mmu__rsp_bits_o.rdata = cache_rd_data;
 
-  assign cache_kill_st2 = ppl_kill_i && req_src_st2 == PPL;
+  assign cache_kill_st2 = kill_i;
   // write to cache mem
   assign cache_wr_en = !cache_kill_st2 && act_st2 && dc_req_bits_st2.we && !(dc_req_bits_st2.amo_op == AMO_SC && cache_sc_fail_st2) && cacheable_st2;
 //======================================================================================================================
@@ -484,7 +484,7 @@ module sy_dcache_ctrl
       IDLE: begin
         allow_dc_req = 1'b1;
         // cache miss or access non-cacheable area 
-        if ((cache_miss || act_st1 && !cacheable && !replay_req_st1) && !(ppl_kill_i && req_src_st1 == PPL)) begin
+        if ((cache_miss || act_st1 && !cacheable && !replay_req_st1) && !kill_i) begin
           // save miss instruction info, such as addr/write data and so on
           state_d = WAIT_KILL;
           update_way_d   = update_way_idx;
@@ -501,7 +501,7 @@ module sy_dcache_ctrl
         end
       end
       WAIT_KILL: begin 
-        if (ppl_kill_i && miss_src_q == PPL) begin
+        if (kill_i) begin
           state_d = IDLE;
         end else begin
           state_d = MISS_REQ;
@@ -509,7 +509,7 @@ module sy_dcache_ctrl
       end
       // issue request to miss unit
       MISS_REQ: begin
-        if (ppl_kill_i && miss_src_q == PPL) begin
+        if (kill_i) begin
           state_d = IDLE;
         end else if (probe_flight_i) begin
           state_d = MISS_REQ;
@@ -522,8 +522,14 @@ module sy_dcache_ctrl
       end
       // wait until the memory transaction returns.
       MISS_WAIT: begin
+        if (kill_i) begin
+          if (miss_done_i) begin
+            state_d = IDLE;   
+          end else begin
+            state_d = KILL_MISS;
+          end
         // if miss unit has already send acquire request, don't go to WAIT_PROBE_DONE
-        if (probe_flight_i && !acquire_flight_i) begin
+        end else if (probe_flight_i && !acquire_flight_i) begin
           state_d = WAIT_PROBE_DONE;
         end else if (miss_done_i) begin
           state_d = REPLAY_REQ; 
@@ -532,7 +538,9 @@ module sy_dcache_ctrl
       end
       // replay read request
       REPLAY_REQ: begin
-        if (probe_flight_i) begin
+        if (kill_i) begin
+          state_d = IDLE;
+        end else if (probe_flight_i) begin
           state_d = REPLAY_REQ;
         end else begin
           miss_replay_req = 1'b1;
@@ -542,15 +550,17 @@ module sy_dcache_ctrl
         end
       end
       WAIT_PROBE_DONE: begin
-        if (!probe_flight_i) begin
+        if (kill_i) begin
+          state_d = IDLE;
+        end else if (!probe_flight_i) begin
           state_d = MISS_REQ;
         end
       end
-        // KILL_MISS: begin
-        //   if (probe_flight_i || miss_done_i) begin
-        //     state_d = IDLE;
-        //   end
-        // end
+      KILL_MISS: begin
+        if (probe_flight_i && !acquire_flight_i || miss_done_i) begin
+          state_d = IDLE;
+        end
+      end
       default: begin
         state_d = IDLE;
       end

@@ -1,6 +1,6 @@
 `timescale 1ns/1ps
 
-`include "glb_def.svh"
+// `include "glb_def.svh"
 
 module sdp_512x64sd1_wrap (
     input           wr_clk_i,

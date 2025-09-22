@@ -357,11 +357,8 @@ assign bp_btb_update_npc = AWTH'(0);
 (* mark_debug = "true" *) logic[31:0]   prb_ppl_id_pc;
 (* mark_debug = "true" *) logic[31:0]   prb_ppl_id_instr;
 
-assign prb_ppl_id_act = id0_act;
-assign prb_ppl_id_pc = fet_dec__id0_pc_o;
+assign prb_ppl_id_act   = id0_act;
+assign prb_ppl_id_pc    = fet_dec__id0_pc_o;
 assign prb_ppl_id_instr = fet_dec__id0_instr_o;
-
-(* mark_debug = "true" *) logic         prb_ppl_halt;
-assign prb_ppl_halt = halt_i;
 
 endmodule : sy_ppl_fet

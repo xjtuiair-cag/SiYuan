@@ -1,0 +1,23 @@
+CAPI=2:
+
+name : ::sd_device:0-r1
+
+description : SD card emulator from ProjectVault
+
+filesets:
+  rtl:
+    files:
+      - rtl/verilog/common.v
+      - rtl/verilog/sd_const.vh : {is_include_file : true}
+      - rtl/verilog/sd_brams.v
+      - rtl/verilog/sd_link.v
+      - rtl/verilog/sd_mgr.v
+      - rtl/verilog/sd_params.vh
+      - rtl/verilog/sd_phy.v
+      - rtl/verilog/sd_top.v
+      - rtl/verilog/sd_wishbone.v
+    file_type : verilogSource
+
+targets:
+  default:
+    filesets: [rtl]

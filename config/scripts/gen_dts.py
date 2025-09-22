@@ -123,31 +123,31 @@ if __name__ == "__main__":
           reg-io-width = <4>; // only 32-bit access are supported
         };\n
         '''
-    # add spi to device tree
-    if cfg["SPI"] :
-        output += '''
-        xps-spi@20000000 {
-          compatible = "xlnx,xps-spi-2.00.b", "xlnx,xps-spi-2.00.a";
-          #address-cells = <1>;
-          #size-cells = <0>;
-          interrupt-parent = <&PLIC0>;
-          interrupts = < 2 2 >;
-          reg = < 0x0 0x20000000 0x0 0x1000 >;
-          xlnx,family = "kintex7";
-          xlnx,fifo-exist = <0x1>;
-          xlnx,num-ss-bits = <0x1>;
-          xlnx,num-transfer-bits = <0x8>;
-          xlnx,sck-ratio = <0x4>;
+    # # add spi to device tree
+    # if cfg["SPI"] :
+    #     output += '''
+    #     xps-spi@20000000 {
+    #       compatible = "xlnx,xps-spi-2.00.b", "xlnx,xps-spi-2.00.a";
+    #       #address-cells = <1>;
+    #       #size-cells = <0>;
+    #       interrupt-parent = <&PLIC0>;
+    #       interrupts = < 2 2 >;
+    #       reg = < 0x0 0x20000000 0x0 0x1000 >;
+    #       xlnx,family = "kintex7";
+    #       xlnx,fifo-exist = <0x1>;
+    #       xlnx,num-ss-bits = <0x1>;
+    #       xlnx,num-transfer-bits = <0x8>;
+    #       xlnx,sck-ratio = <0x4>;
 
-          mmc@0 {
-            compatible = "mmc-spi-slot";
-            reg = <0>;
-            spi-max-frequency = <12500000>;
-            voltage-ranges = <3300 3300>;
-            disable-wp;
-          };
-        };\n
-        '''
+    #       mmc@0 {
+    #         compatible = "mmc-spi-slot";
+    #         reg = <0>;
+    #         spi-max-frequency = <12500000>;
+    #         voltage-ranges = <3300 3300>;
+    #         disable-wp;
+    #       };
+    #     };\n
+        # '''
     if cfg["GPIO"] :
         output += '''
         xlnx_gpio: gpio@40000000 {

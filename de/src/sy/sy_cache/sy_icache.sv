@@ -303,19 +303,18 @@ module sy_icache
       end
       // killed address translation, wait until paddr is valid, and go back to idle
       KILL_ATRANS: begin
-        icache_mmu__req_o.fetch_req = '1;
-        if (mmu_icache__rsp_i.fetch_valid) begin
-          if (flush_i) begin
-            flush_done_o = 1'b1;  
-          end
-          state_d = IDLE;
+        // icache_mmu__req_o.fetch_req = '1;
+        // if (mmu_icache__rsp_i.fetch_valid) begin
+        //   if (flush_i) begin
+        //     flush_done_o = 1'b1;  
+        //   end
+        //   state_d = IDLE;
+        // end
+        if (flush_i) begin
+          flush_done_o = 1'b1;
         end
-      // if (flush_i) begin
-      //   flush_done_o = 1'b1;
-      // end
-      //   state_d = IDLE;
+        state_d = IDLE;
       end
-      
       // killed miss, wait until memory responds and go back to idle
       KILL_REFILL: begin  
         icache_D_ready_o = 1'b1;
