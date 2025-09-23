@@ -351,7 +351,7 @@ module sy_dcache_ctrl
       if (save_lr_addr) begin
         lrsc_addr <= {tag_st1,dc_req_bits_st1.addr_inx >> DCACHE_BLOCK_WTH};
       end
-      if (save_lr_addr) begin
+      if (save_lr_addr && (lrsc_cnt == 0)) begin
         lrsc_cnt <= LRSC_CNT_INIT;
       end else if (del_lr_addr) begin
         lrsc_cnt <= '0;
