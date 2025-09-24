@@ -129,8 +129,8 @@ else ifeq ($(SIM_TYPE),spi)
 	sim_src += dv/tb/axi_mem_spi.sv \
 				dv/tb/tb_sy_spi.sv 
 else ifeq ($(SIM_TYPE),riscv_test)# TODO
-	sim_src += dv/tb/axi_mem_riscv_tests.sv \
-				dv/tb/tb_sy_riscv_tests.sv 
+	sim_src += dv/tb/axi_mem_riscv_test.sv \
+				dv/tb/tb_sy_riscv_test.sv 
 else 
 $(error Unknown sim type - please specify a supported sim type)
 endif
@@ -179,7 +179,7 @@ build_sim_src: $(ip) $(sy_pkg) $(util) $(src) $(sim_src)
 	@echo $(util)           >> dv/vc/source_list.vc       
 	@echo $(src) 	        >> dv/vc/source_list.vc              
 	@echo $(sim_src)        >> dv/vc/source_list.vc          
-	cd ${SIM_DIR} && make sy_sim_$(SIM_TYPE) DV_HOME="$(DV_HOME)" DE_HOME="$(DE_HOME)"
+	cd ${SIM_DIR} && make sy_sim DV_HOME="$(DV_HOME)" DE_HOME="$(DE_HOME)"
 
 run_sim_test:
 	cd ${SIM_DIR} && make run_$(SIM_TYPE) TEST="$(TEST)" DV_HOME="$(DV_HOME)" DE_HOME="$(DE_HOME)" GUI="$(SIM_PARAM)"

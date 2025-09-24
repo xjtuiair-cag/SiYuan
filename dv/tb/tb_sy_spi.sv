@@ -59,17 +59,20 @@ module tb_sy_spi;
 
 
 
-    sy_soc_sim u_sy(
+    sy_soc_sim #(
+        .DDR_SIZE (64*1024*1024)
+    ) soc_inst(
         // =====================================
         // [clock & reset]
         .clk_i                                  (clk),                              
         .rst_i                                  (rst),                              
-        // =====================================
-        .boot_addr_i                            (64'h8000_0000),                    
+        // SPI interface
         .spi_mosi                               (spi_mosi),
         .spi_miso                               (spi_miso),
         .spi_ss                                 (spi_cs),
-        .spi_clk_o                              (spi_clk)
+        .spi_clk_o                              (spi_clk),
+        // =====================================
+        .boot_addr_i                            (64'h8000_0000)                    
     );
 
     assign sd_cmd_i = spi_mosi;

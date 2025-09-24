@@ -1,33 +1,44 @@
 #include "dma.h"
+#include "utils.h"
 
-void write_reg_u64(uintptr_t addr, uint64_t value)
-{
-    volatile uint64_t *loc_addr = (volatile uint64_t *)addr;
-    *loc_addr = value;
-}
-void write_reg_u32(uintptr_t addr, uint32_t value)
-{
-    volatile uint32_t *loc_addr = (volatile uint32_t *)addr;
-    *loc_addr = value;
+void Dma_init(){
+    // Reset DMA
+    write_reg_u32(TRANS_CTRL, (1 << RD_RESET_LOC) |  (1 << WR_RESET_LOC));
+    // whether DMA reset Done
+    uint32_t ctrl;
+    while(1){
+        ctrl = read_reg(TRANS_CTRL);
+        if (((ctrl & (1 << RD_RESET_LOC)) | (ctrl & (1 << WR_RESET_LOC))) == 0)
+            break;
+    };
+    // Clear CTRL reg and STATUS reg
+    write_reg_u32(TRANS_CTRL, 0);
+    write_reg_u32(STATUS, 0);
 }
 
-void Dma_trans(uint64_t src, uint64_t des, uint32_t burst_len, uint64_t volume){
-    write_reg_u64(SRC_BASE_ADDR, src);
-    write_reg_u64(DES_BASE_ADDR, des);
-    write_reg_u64(DATA_VOLUME, volume);
-    write_reg_u32(BURST_LEN, burst_len);
+void Dma_trans_cfg(uint32_t src, uint32_t des, uint32_t rd_burst_len, uint32_t wr_burst_len, uint32_t volume, uint32_t mode){
+    write_reg_u32(SRC_BASE_ADDR, src);
+    write_reg_u32(DES_BASE_ADDR, des);
+    write_reg_u32(DATA_VOLUME, volume);
+    write_reg_u32(TRANS_MODE, mode);
+    write_reg_u32(BURST_LEN, rd_burst_len | (wr_burst_len << 8));
 }
 void Dma_start() {
-    uint32_t ctrl = 0;
-    ctrl |= (1 << START_LOC);
-    write_reg_u32(TRANS_CTRL, ctrl);
+    write_reg_u32(TRANS_CTRL, (1 << START_LOC));
+}
+
+uint8_t is_read_pending(){
+    return read_reg(STATUS) & (1 << RD_PENDING_LOC);
+}
+
+void clear_read_pending(){
+    uint32_t status = read_reg(STATUS);
+    write_reg_u32(STATUS, status & (~(1 << RD_PENDING_LOC)));
 }
 
 uint8_t is_Dma_done() {
-    uintptr_t addr = TRANS_CTRL;
-    uint32_t ctrl = *(volatile uint8_t *)addr;
-    return ctrl & (1 << DONE_LOC);
+    return read_reg(STATUS) & (1 << DONE_LOC);
 }
 void flush_done () {
-    write_reg_u32(TRANS_CTRL,0);
+    write_reg_u32(STATUS,0);
 }

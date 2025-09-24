@@ -28,7 +28,9 @@
 
 module sy_soc_sim
     import sy_soc_pkg::*;
-(
+# (
+    parameter DDR_SIZE = 16*1024*1024  // (64M)
+)(
     // =====================================
     
     // -- <clock>
@@ -260,6 +262,7 @@ module sy_soc_sim
 // DDR
 //======================================================================================================================
     sy_ddr #(
+        .DDR_SIZE (DDR_SIZE),
         .PORT_NUM (2)
     ) ddr_inst(
       .clk_i            (clk_i),
@@ -292,19 +295,17 @@ module sy_soc_sim
 //======================================================================================================================
 // DMA
 //======================================================================================================================
-    if (DMA_EN) begin
-        sy_dma # (
-            .BASE_ADDR  (DMABase),
-            .ADDR_WIDTH (64),
-            .DATA_WIDTH (64),
-            .SOURCE     (CORE_NUM) 
-        ) dma_inst(
-            .clk_i          (clk_i),       
-            .rst_i          (rst_i),      
-            .master         (npu_bus_slave[DMA]), 
-            .slave          (sys_bus_master[CORE_NUM]) 
-        );
-    end
+    sy_dma # (
+        .BASE_ADDR  (DMABase),
+        .ADDR_WIDTH (64),
+        .DATA_WIDTH (64),
+        .SOURCE     (CORE_NUM) 
+    ) dma_inst(
+        .clk_i          (clk_i),       
+        .rst_i          (rst_i),      
+        .master         (npu_bus_slave[DMA]), 
+        .slave          (sys_bus_master[CORE_NUM]) 
+    );
 //======================================================================================================================
 // Clint    
 //======================================================================================================================
@@ -352,18 +353,14 @@ module sy_soc_sim
 // Uart   
 //======================================================================================================================
     logic rx,tx;
-    if (UART_EN) begin
-        sy_uart uart(
-            .clk_i          (clk_i),         
-            .rst_i          (rst_i),         
-            .rx_i           (rx),        
-            .tx_o           (tx),        
-            .irq_o          (irq_sources[0]),     
-            .master         (phri_bus_slave[UART])
-        );
-    end else begin
-        assign tx = '0;
-    end
+    sy_uart uart(
+        .clk_i          (clk_i),         
+        .rst_i          (rst_i),         
+        .rx_i           (rx),        
+        .tx_o           (tx),        
+        .irq_o          (irq_sources[0]),     
+        .master         (phri_bus_slave[UART])
+    );
 
     `ifdef PLATFORM_SIM
         logic rx_done;

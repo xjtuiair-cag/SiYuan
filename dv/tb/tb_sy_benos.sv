@@ -31,11 +31,18 @@ module tb_sy_benos;
     logic                           clk;
     logic                           rst;
 
-    sy_soc_sim soc_inst(
+    sy_soc_sim #(
+        .DDR_SIZE (64*1024*1024)
+    ) soc_inst(
         // =====================================
         // [clock & reset]
         .clk_i                                  (clk),                              
         .rst_i                                  (rst),                              
+        // SPI interface (we don't use SPI in benos test)
+        .spi_mosi                               (),
+        .spi_miso                               (),
+        .spi_ss                                 (),
+        .spi_clk_o                              (),
         // =====================================
         .boot_addr_i                            (64'h8000_0000)                    
     );

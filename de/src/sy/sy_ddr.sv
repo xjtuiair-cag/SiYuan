@@ -29,6 +29,9 @@
 module sy_ddr
   import sy_pkg::*;
 # (
+  `ifdef PLATFORM_SIM
+    parameter DDR_SIZE = 16*1024*1024,  
+  `endif 
     parameter PORT_NUM = 2
 ) (
   input  logic                            clk_i,
@@ -379,7 +382,7 @@ module sy_ddr
     axi_mem_sim # (
       .ADDR_WTH  (64),
       .DATA_WTH  (64),
-      .MEM_SIZE  (512*1024*1024)
+      .MEM_SIZE  (DDR_SIZE)
     ) ddr_sim(
         .clk_i                (clk_i),          
         .rst_i                (rst_i),          

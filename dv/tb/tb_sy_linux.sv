@@ -31,11 +31,18 @@ module tb_sy_linux;
     logic                           clk;
     logic                           rst;
 
-    sy_soc_sim soc_inst(
+    sy_soc_sim #(
+        .DDR_SIZE (512*1024*1024) // linux test need 512M DDR
+    ) soc_inst(
         // =====================================
         // [clock & reset]
         .clk_i                                  (clk),                              
         .rst_i                                  (rst),                              
+        // SPI interface (we don't use SPI in linux test)
+        .spi_mosi                               (),
+        .spi_miso                               (),
+        .spi_ss                                 (),
+        .spi_clk_o                              (),
         // =====================================
         .boot_addr_i                            (64'h1_0000)                    
     );

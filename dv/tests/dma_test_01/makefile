@@ -1,6 +1,6 @@
 GNU ?= riscv64-unknown-elf
 
-COPS += -save-temps=obj -g -O0 -Wall -nostdlib -nostdinc -Iinclude -mcmodel=medany -mabi=lp64 -march=rv64imafd -fno-PIE -fomit-frame-pointer
+COPS += -Os -ggdb -march=rv64im -mabi=lp64 -Wall -mcmodel=medany -mexplicit-relocs -ffreestanding -Iinclude
 
 ##############
 #  build src
@@ -41,5 +41,5 @@ ddr.bin: config.ld $(OBJ_FILES)
 	$(CMD_PREFIX)$(GNU)-objdump -Sxtd $(BUILD_DIR)/ddr.elf > ddr.s; echo " objdump ddr.s"
 	$(CMD_PREFIX)cp $(BUILD_DIR)/ddr.elf ddr.elf
 	mkdir -p output; python gen_verilog_data.py --file "ddr.hex" --offset "0x80000000" --output "ddr.dat"
-	python gen_test_data.py 
+	python gen_test_data.py --length 4096
 

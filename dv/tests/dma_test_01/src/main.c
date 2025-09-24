@@ -14,35 +14,35 @@
 #include "uart.h"
 #include "dma.h"
 
-void dma_check(unsigned long src, unsigned long des, int len){
-    unsigned long * src_loc = (unsigned long*) src;
-    unsigned long * des_loc = (unsigned long*) des;
-    unsigned long src_data;
-    unsigned long des_data;
-    for (int i=0;i<(len<<2);i++){
-        src_data = *src_loc;
-        des_data = *des_loc;
-        print_uart_addr((unsigned long)src_loc);
-        print_uart("--");
-        print_uart_addr((unsigned long)des_loc);
-        print_uart(":  ");
-        if (src_data == des_data) {
-            print_uart("Right!\n");
-        } else {
-            print_uart("Wrong!!!\n");
-        }
+uint8_t *data_arr = (uint8_t *)0x80100000UL;
+uint8_t *ref_arr  = (uint8_t *)0x9a200000UL;
 
-        src_loc += 8;
-        des_loc += 8;
+int dma_check(uint64_t * src, uint64_t * ref, int len){
+    uint64_t src_data;
+    uint64_t ref_data;
+    uint8_t error = 0;
+    for (int i=0;i<(len>>3);i++){
+        src_data = src[i];
+        ref_data = ref[i];
+        if (src_data != ref_data) {
+            print_uart("Wrong Address: ");
+            print_uart_addr(i);
+            print_uart("\r\n");
+            error = -1;
+            break;
+        }
     }
+    return error;
 }
 
 int main()
 {
     init_uart(50000000, 115200);
-    print_uart("Hello World!\r\n");
-    // Trans data from CPU Mem to NPU Mem
-    Dma_trans(0x9a200000,0xA0000000,16,1024);
+    print_uart("---------DMA TEST CASE 0: test Trans between DDR and DDR --------!\r\n");
+
+    Dma_init();
+    // Trans data between DDR and DDR
+    Dma_trans_cfg(0x9a200000,0x80100000,16,16,1024*16,NORMAL_TRANS_MODE);
     Dma_start();
     // check if dma trans is done
     while(1) {
@@ -51,19 +51,14 @@ int main()
         }
     }
     flush_done();
-    print_uart("Transaction from CPU to NPU Done!\r\n");
-    // Trans data from NPU Mem to CPU Mem
-    Dma_trans(0xA0000000,0x9a200000,16,1024);
-    Dma_start();
-    // check if dma trans is done
-    while(1) {
-        if (is_Dma_done()){
-            break;
-        }
-    }
-    flush_done();
-    print_uart("Transaction from NPU to CPU Done!\r\n");
+    print_uart("Transaction Done!\r\n");
+
     // check if dma trans is right
-    dma_check(0x80200000,0x80400000,1024);
+    if(dma_check((uint64_t*)data_arr, (uint64_t*)ref_arr, 1024 * 16) < 0){
+        print_uart("---------SPI TEST CASE 2 FAILED--------\r\n");
+    }  else {
+        print_uart("---------SPI TEST CASE 2 SUCCESS--------\r\n");
+    }
+
     while (1);  // do nothing
 }
