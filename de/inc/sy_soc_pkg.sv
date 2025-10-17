@@ -4,12 +4,17 @@ parameter integer CORE_NUM = 1;
 
     parameter UART_EN = 1;
     parameter SPI_EN = 1;
-    parameter GPIO_EN = 1;
+    parameter GPIO_EN = 0;
     parameter DMA_EN = 1;
+    parameter FFT_EN = 1;
     parameter NPU_EN = 0;
     parameter ETHERNET_EN = 0;
     
     parameter integer ADDR_WIDTH = 64;
+    parameter DBGBase        = 64'h0000_0000;
+    parameter DBGLength      = 64'h1000;
+    parameter REGMAPBase     = 64'h61_0000;
+    parameter REGMAPLength   = 64'h1000;
     parameter UARTBase       = 64'h1000_0000;
     parameter UARTLength     = 64'h1000;
     parameter DRAMBase       = 64'h8000_0000;
@@ -24,6 +29,8 @@ parameter integer CORE_NUM = 1;
     parameter ROMLength      = 64'h10000;
     parameter DMABase        = 64'h3_0000;
     parameter DMALength      = 64'h1000;
+    parameter FFTBase        = 64'h4_0000;
+    parameter FFTLength      = 64'h1000;
     parameter SPIBase        = 64'h2000_0000;
     parameter SPILength      = 64'h800000;
     parameter GPIOBase       = 64'h4000_0000;
@@ -34,6 +41,13 @@ parameter integer CORE_NUM = 1;
     parameter EthernetLength = 64'h1_0000;
     parameter ReservedBase   = {64{1'b1}};
     parameter ReservedLength = 1;
+
+    parameter logic [ADDR_WIDTH-1:0] DEBUG_START  = DBGBase;
+    parameter logic [ADDR_WIDTH-1:0] DEBUG_END    = DBGBase + DBGLength - 1;
+
+    parameter logic [ADDR_WIDTH-1:0] REGMAP_START  = REGMAPBase;
+    parameter logic [ADDR_WIDTH-1:0] REGMAP_END    = REGMAPBase + REGMAPLength - 1;
+
     parameter logic [ADDR_WIDTH-1:0] DRAM_START  = DRAMBase;
     parameter logic [ADDR_WIDTH-1:0] DRAM_END    = DRAMBase + DRAMLength - 1;
 
@@ -54,6 +68,9 @@ parameter integer CORE_NUM = 1;
 
     parameter logic [ADDR_WIDTH-1:0] DMA_START   = DMABase;
     parameter logic [ADDR_WIDTH-1:0] DMA_END     = DMABase + DMALength - 1;
+
+    parameter logic [ADDR_WIDTH-1:0] FFT_START   = FFTBase;
+    parameter logic [ADDR_WIDTH-1:0] FFT_END     = FFTBase + FFTLength - 1;
 
     parameter logic [ADDR_WIDTH-1:0] NPU_START   = NPUBase;
     parameter logic [ADDR_WIDTH-1:0] NPU_END     = NPUBase + NPULength - 1;
@@ -76,20 +93,22 @@ parameter integer CORE_NUM = 1;
     parameter PHRI_BUS = 2;
     parameter NPU_BUS = 3;
     // control bus
-    parameter ROM   = 0;
+    parameter REGMAP = 0;
     parameter PLIC  = 1;
     parameter CLINT = 2;
     
     // peripheral bus
-    parameter UART  = 0;
-    parameter SPI   = 1;
-    parameter GPIO  = 2;
+    parameter ROM   = 0;
+    parameter UART  = 1;
+    parameter SPI   = 2;
+    parameter GPIO  = 0;
     parameter ETHERNET = 0;   
     
     // NPU bus
-    parameter NPU_DRAM  = 0;
+    parameter DEBUG = 0;
     parameter DMA   = 1;
-    parameter NPU = 0;
+    parameter FFT   = 2;
+    parameter NPU   = 0;
     
     parameter SYS_BUS_REGION     = 3;
     parameter SYS_BUS_SLAVE_NUM  = 4;
@@ -107,28 +126,33 @@ parameter integer CORE_NUM = 1;
     parameter PHRI_BUS_SRC_MSB   = PHRI_BUS_SRC_LSB + 1;
     
     parameter NPU_BUS_REGION    = 1;     
-    parameter NPU_BUS_SLAVE_NUM = 2;
+    parameter NPU_BUS_SLAVE_NUM = 3;
     parameter NPU_BUS_SRC_LSB   = SYS_BUS_SRC_MSB;
     parameter NPU_BUS_SRC_MSB   = NPU_BUS_SRC_LSB + 1;
     
+    parameter MEM_BUS_REGION    = 1;     
+    parameter MEM_BUS_SLAVE_NUM = 1;
+    parameter MEM_BUS_SRC_LSB   = NPU_BUS_SRC_MSB;
+    parameter MEM_BUS_SRC_MSB   = MEM_BUS_SRC_LSB + $clog2(NPU_BUS_SLAVE_NUM);
+    
     parameter logic [SYS_BUS_SLAVE_NUM-1:0][SYS_BUS_REGION-1:0][ADDR_WIDTH-1:0]sys_bus_start_addr = {
-    {RESERVED_START,NPU_DRAM_START,DMA_START},
-{UART_START,SPI_START,GPIO_START},
-{ROM_START,PLIC_START,CLINT_START},
+    {DEBUG_START,DMA_START,FFT_START},
+{ROM_START,UART_START,SPI_START},
+{REGMAP_START,PLIC_START,CLINT_START},
 {RESERVED_START,RESERVED_START,DRAM_START}
 
     };
     
     parameter logic [SYS_BUS_SLAVE_NUM-1:0][SYS_BUS_REGION-1:0][ADDR_WIDTH-1:0]sys_bus_end_addr = {
-    {RESERVED_END,NPU_DRAM_END,DMA_END},
-{UART_END,SPI_END,GPIO_END},
-{ROM_END,PLIC_END,CLINT_END},
+    {DEBUG_END,DMA_END,FFT_END},
+{ROM_END,UART_END,SPI_END},
+{REGMAP_END,PLIC_END,CLINT_END},
 {RESERVED_END,RESERVED_END,DRAM_END}
 
     };
     
     parameter logic [SYS_BUS_SLAVE_NUM-1:0][SYS_BUS_REGION-1:0]sys_bus_region_en = {
-    {1'b0,1'b1,1'b1},
+    {1'b1,1'b1,1'b1},
 {1'b1,1'b1,1'b1},
 {1'b1,1'b1,1'b1},
 {1'b0,1'b0,1'b1}
@@ -136,21 +160,21 @@ parameter integer CORE_NUM = 1;
     };
     
     parameter logic  [CTRL_BUS_SLAVE_NUM-1:0][CTRL_BUS_REGION-1:0][ADDR_WIDTH-1:0]ctrl_bus_start_addr = {
-       {CLINT_START,       PLIC_START,     ROM_START}      
+       {CLINT_START,       PLIC_START,     REGMAP_START}      
      };
      parameter logic [CTRL_BUS_SLAVE_NUM-1:0][CTRL_BUS_REGION-1:0][ADDR_WIDTH-1:0]ctrl_bus_end_addr = {
-       {CLINT_END,         PLIC_END,       ROM_END}      
+       {CLINT_END,         PLIC_END,       REGMAP_END}      
      };
      parameter logic [CTRL_BUS_SLAVE_NUM-1:0][CTRL_BUS_REGION-1:0]ctrl_bus_region_en = {
        {1'b1, 1'b1, 1'b1}
      };
     
     parameter logic [PHRI_BUS_SLAVE_NUM-1:0][PHRI_BUS_REGION-1:0][ADDR_WIDTH-1:0]phri_bus_start_addr = {
-    {GPIO_START,SPI_START,UART_START}
+    {SPI_START,UART_START,ROM_START}
 
     };
     parameter logic [PHRI_BUS_SLAVE_NUM-1:0][PHRI_BUS_REGION-1:0][ADDR_WIDTH-1:0]phri_bus_end_addr = {
-    {GPIO_END,SPI_END,UART_END}
+    {SPI_END,UART_END,ROM_END}
 
     };
     parameter logic [PHRI_BUS_SLAVE_NUM-1:0][PHRI_BUS_REGION-1:0]phri_bus_region_en = {
@@ -159,16 +183,26 @@ parameter integer CORE_NUM = 1;
     };
     
     parameter logic [NPU_BUS_SLAVE_NUM-1:0][NPU_BUS_REGION-1:0][ADDR_WIDTH-1:0]npu_bus_start_addr = {
-    {DMA_START,NPU_DRAM_START}
+    {FFT_START,DMA_START,DEBUG_START}
 
     };
     parameter logic [NPU_BUS_SLAVE_NUM-1:0][NPU_BUS_REGION-1:0][ADDR_WIDTH-1:0]npu_bus_end_addr = {
-    {DMA_END,NPU_DRAM_END}
+    {FFT_END,DMA_END,DEBUG_END}
 
     };
     parameter logic [NPU_BUS_SLAVE_NUM-1:0][NPU_BUS_REGION-1:0]npu_bus_region_en = {
-    {1'b1,1'b1}
+    {1'b1,1'b1,1'b1}
 
     };
+    
+    parameter logic [MEM_BUS_SLAVE_NUM-1:0][MEM_BUS_REGION-1:0][ADDR_WIDTH-1:0]mem_bus_start_addr = {{
+        64'b0
+    }};
+    parameter logic [MEM_BUS_SLAVE_NUM-1:0][MEM_BUS_REGION-1:0][ADDR_WIDTH-1:0]mem_bus_end_addr = {{
+        RESERVED_END
+    }};
+    parameter logic [MEM_BUS_SLAVE_NUM-1:0][MEM_BUS_REGION-1:0]mem_bus_region_en = {{
+        1'b1
+    }};
     
 endpackage

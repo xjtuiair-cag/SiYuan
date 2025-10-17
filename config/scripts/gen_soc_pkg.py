@@ -13,23 +13,26 @@ if __name__ == "__main__":
         cfg = yaml.safe_load(file)
 
     core_num = cfg["Core_num"]
-    phri_slave_num = 0
-    npu_slave_num = 1
-    ctrl_slave_num = 3 # clint/plic/bootrom
+    phri_slave_num = 1  # bootrom
+    npu_slave_num = 1   # debug module
+    ctrl_slave_num = 3 # clint/plic/RegMap
 
-    uart_loc     = 0
-    spi_loc      = 1
-    gpio_loc     = 2
-    ethernet_loc = 3
+    bootrom_loc  = 0
+    uart_loc     = 1
+    spi_loc      = 2
+    gpio_loc     = 3
+    ethernet_loc = 4
 
-    npu_dram_loc = 0
+    debug_loc    = 0
     dma_loc      = 1
-    npu_loc     = 2
+    fft_loc      = 2
+    npu_loc      = 3
 
     uart_en     = 0 
     spi_en      = 0 
     gpio_en     = 0 
     dma_en      = 0 
+    fft_en      = 0
     npu_en      = 0
     ethernet_en = 0 
 
@@ -58,8 +61,16 @@ if __name__ == "__main__":
         npu_slave_num += 1
         dma_en = 1
     else: 
-        npu_loc = dma_loc
+        fft_loc = dma_loc
         dma_loc = 0
+
+    if cfg["FFT"]:
+        npu_slave_num += 1
+        fft_en = 1
+    else: 
+        npu_loc = fft_loc
+        fft_loc = 0
+
     if cfg["NPU"]:
         npu_slave_num += 1
         npu_en = 1
@@ -75,12 +86,17 @@ if __name__ == "__main__":
     parameter SPI_EN = {};
     parameter GPIO_EN = {};
     parameter DMA_EN = {};
+    parameter FFT_EN = {};
     parameter NPU_EN = {};
     parameter ETHERNET_EN = {};
-    '''.format(uart_en, spi_en, gpio_en, dma_en, npu_en, ethernet_en)
+    '''.format(uart_en, spi_en, gpio_en, dma_en, fft_en, npu_en, ethernet_en)
     # add Address Range of each peripheral (don't modified)
     output += '''
     parameter integer ADDR_WIDTH = 64;
+    parameter DBGBase        = 64'h0000_0000;
+    parameter DBGLength      = 64'h1000;
+    parameter REGMAPBase     = 64'h61_0000;
+    parameter REGMAPLength   = 64'h1000;
     parameter UARTBase       = 64'h1000_0000;
     parameter UARTLength     = 64'h1000;
     parameter DRAMBase       = 64'h8000_0000;
@@ -95,6 +111,8 @@ if __name__ == "__main__":
     parameter ROMLength      = 64'h10000;
     parameter DMABase        = 64'h3_0000;
     parameter DMALength      = 64'h1000;
+    parameter FFTBase        = 64'h4_0000;
+    parameter FFTLength      = 64'h1000;
     parameter SPIBase        = 64'h2000_0000;
     parameter SPILength      = 64'h800000;
     parameter GPIOBase       = 64'h4000_0000;
@@ -105,6 +123,13 @@ if __name__ == "__main__":
     parameter EthernetLength = 64'h1_0000;
     parameter ReservedBase   = {64{1'b1}};
     parameter ReservedLength = 1;
+
+    parameter logic [ADDR_WIDTH-1:0] DEBUG_START  = DBGBase;
+    parameter logic [ADDR_WIDTH-1:0] DEBUG_END    = DBGBase + DBGLength - 1;
+
+    parameter logic [ADDR_WIDTH-1:0] REGMAP_START  = REGMAPBase;
+    parameter logic [ADDR_WIDTH-1:0] REGMAP_END    = REGMAPBase + REGMAPLength - 1;
+
     parameter logic [ADDR_WIDTH-1:0] DRAM_START  = DRAMBase;
     parameter logic [ADDR_WIDTH-1:0] DRAM_END    = DRAMBase + DRAMLength - 1;
 
@@ -125,6 +150,9 @@ if __name__ == "__main__":
 
     parameter logic [ADDR_WIDTH-1:0] DMA_START   = DMABase;
     parameter logic [ADDR_WIDTH-1:0] DMA_END     = DMABase + DMALength - 1;
+
+    parameter logic [ADDR_WIDTH-1:0] FFT_START   = FFTBase;
+    parameter logic [ADDR_WIDTH-1:0] FFT_END     = FFTBase + FFTLength - 1;
 
     parameter logic [ADDR_WIDTH-1:0] NPU_START   = NPUBase;
     parameter logic [ADDR_WIDTH-1:0] NPU_END     = NPUBase + NPULength - 1;
@@ -148,24 +176,26 @@ if __name__ == "__main__":
     parameter PHRI_BUS = 2;
     parameter NPU_BUS = 3;
     // control bus
-    parameter ROM   = 0;
+    parameter REGMAP = 0;
     parameter PLIC  = 1;
     parameter CLINT = 2;
     '''
     output += '''
     // peripheral bus
+    parameter ROM   = {};
     parameter UART  = {};
     parameter SPI   = {};
     parameter GPIO  = {};
     parameter ETHERNET = {};   
-    '''.format(uart_loc, spi_loc, gpio_loc , ethernet_loc)
+    '''.format(bootrom_loc, uart_loc, spi_loc, gpio_loc , ethernet_loc)
 
     output += '''
     // NPU bus
-    parameter NPU_DRAM  = {};
+    parameter DEBUG = {};
     parameter DMA   = {};
-    parameter NPU = {};
-    '''.format(npu_dram_loc,dma_loc,npu_loc)
+    parameter FFT   = {};
+    parameter NPU   = {};
+    '''.format(debug_loc,dma_loc,fft_loc,npu_loc)
 
     # System Bus config
     output += '''
@@ -199,6 +229,13 @@ if __name__ == "__main__":
     parameter NPU_BUS_SRC_MSB   = NPU_BUS_SRC_LSB + 1;
     '''.format(npu_slave_num)
 
+    output += '''
+    parameter MEM_BUS_REGION    = 1;     
+    parameter MEM_BUS_SLAVE_NUM = 1;
+    parameter MEM_BUS_SRC_LSB   = NPU_BUS_SRC_MSB;
+    parameter MEM_BUS_SRC_MSB   = MEM_BUS_SRC_LSB + $clog2(NPU_BUS_SLAVE_NUM);
+    '''
+
     # system bus
     phri_region_start = "{"
     phri_region_en    = "{"
@@ -206,9 +243,12 @@ if __name__ == "__main__":
         for i in range(3-phri_slave_num):
             phri_region_start += "RESERVED_START,"
             phri_region_en    += "1'b0,"
+    # bootrom
+    phri_region_start += "ROM_START"
+    phri_region_en    += "1'b1"
     if cfg["Uart"]: 
-        phri_region_start += "UART_START"
-        phri_region_en    += "1'b1"
+        phri_region_start += ",UART_START"
+        phri_region_en    += ",1'b1"
     if cfg["SPI"]:
         phri_region_start += ",SPI_START"
         phri_region_en    += ",1'b1"
@@ -231,10 +271,13 @@ if __name__ == "__main__":
             npu_region_start += "RESERVED_START,"
             npu_region_en    += "1'b0,"
     # NPU DMEM
-    npu_region_start += "NPU_DRAM_START"
+    npu_region_start += "DEBUG_START"
     npu_region_en    += "1'b1"
     if cfg["DMA"]:
         npu_region_start += ",DMA_START"
+        npu_region_en    += ",1'b1"
+    if cfg["FFT"]:
+        npu_region_start += ",FFT_START"
         npu_region_en    += ",1'b1"
     if cfg["NPU"]:
         npu_region_start += ",NPU_START"
@@ -250,7 +293,7 @@ if __name__ == "__main__":
     for i in range(sys_bus_region-3):
         ctrl_region_start += "RESERVED_START,"
         ctrl_region_en    += "1'b0,"
-    ctrl_region_start += "ROM_START,PLIC_START,CLINT_START},\n"
+    ctrl_region_start += "REGMAP_START,PLIC_START,CLINT_START},\n"
     ctrl_region_en    += "1'b1,1'b1,1'b1},\n"
     ctrl_region_end = ctrl_region_start.replace("START","END")
 
@@ -281,10 +324,10 @@ if __name__ == "__main__":
     # control bus
     output += '''
     parameter logic  [CTRL_BUS_SLAVE_NUM-1:0][CTRL_BUS_REGION-1:0][ADDR_WIDTH-1:0]ctrl_bus_start_addr = {
-       {CLINT_START,       PLIC_START,     ROM_START}      
+       {CLINT_START,       PLIC_START,     REGMAP_START}      
      };
      parameter logic [CTRL_BUS_SLAVE_NUM-1:0][CTRL_BUS_REGION-1:0][ADDR_WIDTH-1:0]ctrl_bus_end_addr = {
-       {CLINT_END,         PLIC_END,       ROM_END}      
+       {CLINT_END,         PLIC_END,       REGMAP_END}      
      };
      parameter logic [CTRL_BUS_SLAVE_NUM-1:0][CTRL_BUS_REGION-1:0]ctrl_bus_region_en = {
        {1'b1, 1'b1, 1'b1}
@@ -293,7 +336,7 @@ if __name__ == "__main__":
     # phri bus
     phri_bus_start = "}\n"
     phri_bus_en = "}\n"
-    phri_slave = ["UART","SPI","GPIO","ETH"]
+    phri_slave = ["ROM","UART","SPI","GPIO","ETH"]
     for i in range(phri_slave_num):
         if i==0:
             phri_bus_start = phri_slave[i] + "_START" + phri_bus_start
@@ -319,7 +362,7 @@ if __name__ == "__main__":
     # NPU bus
     npu_bus_start = "}\n"
     npu_bus_en = "}\n"
-    npu_slave = ["NPU_DRAM","DMA","NPU"]
+    npu_slave = ["DEBUG","DMA","FFT","NPU"]
     for i in range(npu_slave_num):
         if i==0:
             npu_bus_start = npu_slave[i] + "_START" + npu_bus_start
@@ -342,6 +385,19 @@ if __name__ == "__main__":
     {}
     }};
     '''.format(npu_bus_start,npu_bus_end,npu_bus_en)
+
+    output += '''
+    parameter logic [MEM_BUS_SLAVE_NUM-1:0][MEM_BUS_REGION-1:0][ADDR_WIDTH-1:0]mem_bus_start_addr = {{
+        64'b0
+    }};
+    parameter logic [MEM_BUS_SLAVE_NUM-1:0][MEM_BUS_REGION-1:0][ADDR_WIDTH-1:0]mem_bus_end_addr = {{
+        RESERVED_END
+    }};
+    parameter logic [MEM_BUS_SLAVE_NUM-1:0][MEM_BUS_REGION-1:0]mem_bus_region_en = {{
+        1'b1
+    }};
+    '''
+
 
     output += "\nendpackage\n"
 

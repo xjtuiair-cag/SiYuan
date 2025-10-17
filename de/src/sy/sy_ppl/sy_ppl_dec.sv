@@ -146,7 +146,7 @@ module sy_ppl_dec
     // =====================================
     // [to ppl_mdu]
     output  logic                           dec_mdu__ex0_avail_o,
-    output  logic[AWTH-1:0]                 dec_mdu__pc_o,
+    output  logic[AWTH-1:0]                 dec_mdu__npc_o,
     output  mdu_opcode_e                    dec_mdu__mdu_opcode_o,
     output  logic                           dec_mdu__rs1_sign_o,
     output  logic                           dec_mdu__rs2_sign_o,
@@ -429,7 +429,7 @@ always_comb begin
             end
             RVCLS_BRANCH : begin
                 instr_cls = INSTR_CLS_JBR;
-                alu_stage_act = 2'h0;
+                // alu_stage_act = 2'h0;
                 jbr_opcode = JBR_OP_BRANCH;
                 rs1_src_sel = RS1_SRC_REG;
                 rs2_src_sel = RS2_SRC_REG;
@@ -1190,7 +1190,7 @@ assign dec_mdu__ex0_avail_o = ex0_avail && (ex0_instr_cls == INSTR_CLS_MDU);
 
 always_ff @(posedge clk_i) begin
     if(fet_dec__id0_avail_i) begin
-        dec_mdu__pc_o <= `TCQ fet_dec__id0_pc_i;
+        dec_mdu__npc_o <= `TCQ fet_dec__id0_npc_i;
         dec_mdu__mdu_opcode_o <= `TCQ mdu_opcode;
         dec_mdu__rs1_sign_o <= `TCQ mdu_rs1_sign;
         dec_mdu__rs2_sign_o <= `TCQ mdu_rs2_sign;

@@ -68,6 +68,7 @@ logic                           ctrl_x__wb_kill;
 logic                           ctrl_fet__set_en;
 logic[AWTH-1:0]                 ctrl_fet__set_npc;
 logic                           ctrl_fet__act;
+logic                           ctrl_fet__step;
 logic[DWTH-1:0]                 ctrl_alu__csr_rdata;
 // fet
 logic                           fet_ctrl__if0_act;
@@ -121,7 +122,7 @@ size_e                          dec_alu__size;
 logic                           dec_alu__excp_en;
 ecode_e                         dec_alu__excp_ecode;
 logic                           dec_mdu__ex0_avail;
-logic[AWTH-1:0]                 dec_mdu__pc;
+logic[AWTH-1:0]                 dec_mdu__npc;
 mdu_opcode_e                    dec_mdu__mdu_opcode;
 logic                           dec_mdu__rs1_sign;
 logic                           dec_mdu__rs2_sign;
@@ -171,6 +172,8 @@ logic                           mdu_dec__blk_en_div;
 logic[4:0]                      mdu_dec__blk_idx_div;
 logic                           mdu_alu__mul_wb_busy;
 logic                           mdu_alu__div_wb_busy;
+logic                           mdu_csr__retire_en;
+logic[AWTH-1:0]                 mdu_csr__retire_npc;
 logic                           mdu_reg__rdst_en;
 logic[4:0]                      mdu_reg__rdst_idx;
 logic[DWTH-1:0]                 mdu_reg__rdst_data;
@@ -241,6 +244,8 @@ logic                           alu_csr__write_fflags   ;
 logic                           alu_csr__dirty_fp_state ;   
 logic[4:0]                      alu_csr__fflags         ;   
 
+logic                           alu_csr__retire_en      ;
+logic[AWTH-1:0]                 alu_csr__retire_npc     ;
 
 logic                           alu_csr__mret           ;  
 logic                           alu_csr__sret           ;  
@@ -292,6 +297,7 @@ icache_mmu_req_t                    icache_areq;
 mmu_icache_rsp_t                    icache_arsp;
 
 logic                               halt;
+logic                               single_step;
 logic                               flush_bp;               
 //======================================================================================================================
 // Instance
@@ -327,6 +333,7 @@ sy_ppl_ctrl u_sy_ppl_ctrl (
     .ctrl_fet__set_en_o                     (ctrl_fet__set_en),                 
     .ctrl_fet__set_npc_o                    (ctrl_fet__set_npc),                
     .ctrl_fet__act_o                        (ctrl_fet__act),                    
+    .ctrl_fet__step_o                       (ctrl_fet__step),
     .fet_ctrl__if0_act_i                    (fet_ctrl__if0_act),                
     .fet_ctrl__id0_act_i                    (fet_ctrl__id0_act),                
     .dec_ctrl__ex0_act_i                    (dec_ctrl__ex0_act),                
@@ -345,13 +352,14 @@ sy_ppl_ctrl u_sy_ppl_ctrl (
     .mdu_ctrl__div_act_i                    (mdu_ctrl__div_act),                
     // =====================================
     // [from csr regfile]
+    .csr_ctrl__single_step_i                (single_step    ),
     .csr_ctrl__eret_i                       (csr_ctrl__eret),
     .csr_ctrl__epc_i                        (csr_ctrl__epc),
     .csr_ctrl__trap_vec_i                   (csr_ctrl__trap_vec),
     // .csr_ctrl__wfi_wakeup_i                 (csr_ctrl__wfi_wakeup),
     .csr_ctrl__set_debug_i                  (csr_ctrl__set_debug),
     .csr_ctrl__ex_valid_i                   (csr_ctrl__ex_valid),
-    .csr_ctrl__debug_mode_i                 (csr_ctrl__debug_mode),
+    // .csr_ctrl__debug_mode_i                 (csr_ctrl__debug_mode),
     .csr_ctrl__flush_i                      (csr_ctrl__flush)
 );
 
@@ -380,6 +388,7 @@ sy_ppl_fet u_sy_ppl_fet (
     .ctrl_fet__set_en_i                     (ctrl_fet__set_en),                 
     .ctrl_fet__set_npc_i                    (ctrl_fet__set_npc),                
     .ctrl_fet__act_i                        (ctrl_fet__act),                    
+    .ctrl_fet__step_i                       (ctrl_fet__step),
     .fet_ctrl__if0_act_o                    (fet_ctrl__if0_act),                
     .fet_ctrl__id0_act_o                    (fet_ctrl__id0_act),                
     // =====================================
@@ -505,7 +514,7 @@ sy_ppl_dec u_sy_ppl_dec (
     // =====================================
     // [to ppl_mdu]
     .dec_mdu__ex0_avail_o                   (dec_mdu__ex0_avail),               
-    .dec_mdu__pc_o                          (dec_mdu__pc),                      
+    .dec_mdu__npc_o                         (dec_mdu__npc),                      
     .dec_mdu__mdu_opcode_o                  (dec_mdu__mdu_opcode),              
     .dec_mdu__rs1_sign_o                    (dec_mdu__rs1_sign),                
     .dec_mdu__rs2_sign_o                    (dec_mdu__rs2_sign),                
@@ -561,7 +570,6 @@ sy_ppl_fp_reg u_sy__ppl_fp_reg(
     // [clock & reset]
     // -- <clock>
     .clk_i                      (clk_i                   ),                                    
-                                 
     .rst_i                      (rst_i                   ),                                    
                                  
     .dec_fp_reg__rs1_idx_i      (dec_fp_reg__rs1_idx   ),                              
@@ -603,11 +611,13 @@ sy_ppl_alu u_sy_ppl_alu (
     .csr_alu__rdata_i                       (csr_alu__rdata ),   
     .alu_csr__ex_o                          (alu_csr__ex    ),   
     .alu_csr__pc_o                          (alu_csr__pc    ),
-    .alu_csr__npc_o                         (alu_csr__npc   ), 
     .alu_csr__instr_o                       (alu_csr__instr ),   
     .alu_csr__write_fflags_o                (alu_csr__write_fflags),
     .alu_csr__dirty_fp_state_o              (alu_csr__dirty_fp_state),
     .alu_csr__fflags_o                      (alu_csr__fflags),
+
+    .alu_csr__retire_en_o                   (alu_csr__retire_en),
+    .alu_csr__retire_npc_o                  (alu_csr__retire_npc),
                                              
     .alu_csr__mret_o                        (alu_csr__mret  ),  
     .alu_csr__sret_o                        (alu_csr__sret  ),  
@@ -718,7 +728,7 @@ sy_ppl_mdu u_sy_ppl_mdu (
     // =====================================
     // [to ppl_dec]
     .dec_mdu__ex0_avail_i                   (dec_mdu__ex0_avail),               
-    .dec_mdu__pc_i                          (dec_mdu__pc),                      
+    .dec_mdu__npc_i                         (dec_mdu__npc),                      
     .dec_mdu__mdu_opcode_i                  (dec_mdu__mdu_opcode),              
     .dec_mdu__rs1_sign_i                    (dec_mdu__rs1_sign),                
     .dec_mdu__rs2_sign_i                    (dec_mdu__rs2_sign),                
@@ -732,6 +742,10 @@ sy_ppl_mdu u_sy_ppl_mdu (
     .mdu_dec__blk_idx_div_o                 (mdu_dec__blk_idx_div),             
     .mdu_alu__mul_wb_busy_o                 (mdu_alu__mul_wb_busy),             
     .mdu_alu__div_wb_busy_o                 (mdu_alu__div_wb_busy),             
+    // =====================================
+    // [to csr]
+    .mdu_csr__retire_en_o                   (mdu_csr__retire_en),
+    .mdu_csr__retire_npc_o                  (mdu_csr__retire_npc),
     // =====================================
     // [to ppl_reg]
     .mdu_reg__rdst_en_o                     (mdu_reg__rdst_en),                 
@@ -779,6 +793,7 @@ sy_ppl_csr_regfile #(
     .hart_id_i                              (HART_ID[HART_ID_WTH-1:0]),
     .debug_req_i                            (debug_req_i),                                     
     .halt_o                                 (halt),
+    .single_step_o                          (single_step),
                                              
     .alu_csr__valid_i                       (alu_csr__valid       ),                  
     .alu_csr__cmd_i                         (alu_csr__cmd         ),                
@@ -792,7 +807,11 @@ sy_ppl_csr_regfile #(
     .alu_csr__dirty_fp_state_i              (alu_csr__dirty_fp_state),
     .alu_csr__fflags_i                      (alu_csr__fflags      ),
     .alu_csr__wfi_i                         (alu_csr__wfi_en),
-    .csr_ctrl__wfi_wakeup_o                 (),
+    .alu_csr__retire_en_i                   (alu_csr__retire_en),
+    .alu_csr__retire_npc_i                  (alu_csr__retire_npc),
+    .mdu_csr__retire_en_i                   (mdu_csr__retire_en),
+    .mdu_csr__retire_npc_i                  (mdu_csr__retire_npc),
+
     .alu_csr__mret_i                        (alu_csr__mret        ),                 
     .alu_csr__sret_i                        (alu_csr__sret        ),                 
     .alu_csr__dret_i                        (alu_csr__dret        ),                 

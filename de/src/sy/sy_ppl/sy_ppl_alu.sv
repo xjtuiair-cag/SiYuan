@@ -63,11 +63,13 @@ module sy_ppl_alu
     input   logic[DWTH-1:0]                 csr_alu__rdata_i,
     output  exception_t                     alu_csr__ex_o,   
     output  logic[AWTH-1:0]                 alu_csr__pc_o,
-    output  logic[AWTH-1:0]                 alu_csr__npc_o,
     output  logic[31:0]                     alu_csr__instr_o,
     output  logic                           alu_csr__write_fflags_o,
     output  logic                           alu_csr__dirty_fp_state_o,
     output  logic[4:0]                      alu_csr__fflags_o,
+    // retire instruction at write back stage
+    output  logic                           alu_csr__retire_en_o,
+    output  logic[AWTH-1:0]                 alu_csr__retire_npc_o,
 
     output  logic                           alu_csr__mret_o,
     output  logic                           alu_csr__sret_o,
@@ -212,6 +214,7 @@ logic                               mem_dc_hit_dly;
 logic                               mem_first_cycle;
 logic[DWTH-1:0]                     mem_rd_data_temp;    
 logic[AWTH-1:0]                     mem_npc;
+logic[AWTH-1:0]                     mem_true_npc;
 logic[IWTH-1:0]                     mem_instr;
 logic                               mem_rdst_en;
 rdst_src_e                          mem_rdst_src_sel;
@@ -260,6 +263,7 @@ logic                               wb_avail;
 logic                               wb_accpt;
 logic[AWTH-1:0]                     wb_pc;
 logic[AWTH-1:0]                     wb_npc;
+logic[AWTH-1:0]                     wb_true_npc;
 logic[IWTH-1:0]                     wb_instr;
 logic                               wb_dc_hit;
 logic[1:0]                          wb_stage_act;
@@ -490,6 +494,7 @@ always_ff @(posedge clk_i) begin
         mem_stage_act[1] <= `TCQ dec_alu__stage_act_i[1];
         mem_pc <= `TCQ dec_alu__pc_i;
         mem_npc <= `TCQ dec_alu__npc_i;
+        mem_true_npc <= `TCQ ex0_true_npc;
         mem_access_dc <= `TCQ ppl_dmem__req_o && dmem_ppl__rsp_i;
         mem_instr <= `TCQ dec_alu__instr_i;
         mem_rdst_en <= `TCQ dec_alu__rdst_en_i;
@@ -620,6 +625,7 @@ always_ff @(posedge clk_i) begin
     if(mem_avail) begin
         wb_pc <= `TCQ mem_pc;
         wb_npc <= `TCQ mem_npc;
+        wb_true_npc <= `TCQ mem_true_npc;
         wb_instr <= `TCQ mem_instr;
         wb_stage_act[0] <= mem_stage_act[0];
         wb_stage_act[1] <= mem_stage_act[1];
@@ -697,8 +703,10 @@ always_comb begin
 end
 
 assign alu_csr__pc_o = wb_pc; 
-assign alu_csr__npc_o = wb_npc;
 assign alu_csr__instr_o = wb_instr;
+// retire instruction 
+assign alu_csr__retire_en_o  = wb_act;
+assign alu_csr__retire_npc_o = wb_instr_cls == INSTR_CLS_JBR ? wb_true_npc : wb_npc;
 //======================================================================================================================
 // system instruction interface 
 //======================================================================================================================

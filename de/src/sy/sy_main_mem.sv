@@ -29,14 +29,17 @@
 module sy_main_mem
   import sy_pkg::*;
 # (
-        parameter HART_NUM = 2,
-        parameter HART_ID_WTH = 1,
-        parameter HART_ID_LSB = 1
+    parameter HART_NUM = 2,
+    parameter HART_ID_WTH = 1,
+    parameter HART_ID_LSB = 1
 ) (
-  input  logic                            clk_i,
-  input  logic                            rst_i,
+  input  logic                              clk_i,
+  input  logic                              rst_i,
+  // ctrl 
+  input  logic                              flush_L2_cache_en_i,
+  output logic                              flush_L2_cache_done_o,
   // TileLink Interface
-  TL_BUS.Master                           master,
+  TL_BUS.Master                             master,
   // AXI4 interface
   output  logic                             oup_axi_aw_valid_o,
   input   logic                             oup_axi_aw_ready_i,         
@@ -144,6 +147,8 @@ module sy_main_mem
   sy_L2_cache L2_cache_inst (
     .clk_i                   (clk_i),        
     .rst_i                   (rst_i),        
+    .flush_en_i              (flush_L2_cache_en_i),  
+    .flush_done_o            (flush_L2_cache_done_o),
 
     .TL_A_valid_i            (oup_A_valid),               
     .TL_A_ready_o            (oup_A_ready),               

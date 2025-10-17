@@ -440,7 +440,7 @@ module sy_dcache_missunit
   assign dcache_A_bits_o.source   = SOURCE_ID; 
   assign dcache_A_bits_o.address  = cacheable ? (req_bits_q.addr >> DCACHE_BLOCK_WTH) << DCACHE_BLOCK_WTH : 
                                       (req_bits_q.addr >> DCACHE_DATA_WTH) << DCACHE_DATA_WTH; 
-  assign dcache_A_bits_o.mask     = req_bits_q.be; 
+  assign dcache_A_bits_o.mask     = cacheable ? 8'hFF : req_bits_q.be; 
   assign dcache_A_bits_o.data     = !cacheable && req_bits_q.we ? req_bits_q.wdata : '0; 
   assign dcache_A_bits_o.corrupt  = 1'b0; 
   

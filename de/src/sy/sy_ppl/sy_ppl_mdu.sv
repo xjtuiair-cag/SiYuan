@@ -48,7 +48,7 @@ module sy_ppl_mdu
     // =====================================
     // [to ppl_dec]
     input   logic                           dec_mdu__ex0_avail_i,
-    input   logic[AWTH-1:0]                 dec_mdu__pc_i,
+    input   logic[AWTH-1:0]                 dec_mdu__npc_i,
     input   mdu_opcode_e                    dec_mdu__mdu_opcode_i,
     input   logic                           dec_mdu__rs1_sign_i,
     input   logic                           dec_mdu__rs2_sign_i,
@@ -66,6 +66,10 @@ module sy_ppl_mdu
     output  logic                           mdu_alu__mul_wb_busy_o,
     output  logic                           mdu_alu__div_wb_busy_o,
     // =====================================
+    // [to csr]
+    output  logic                           mdu_csr__retire_en_o,
+    output  logic[AWTH-1:0]                 mdu_csr__retire_npc_o,
+    // =====================================
     // [to ppl_reg]
     output  logic                           mdu_reg__rdst_en_o,
     output  logic[4:0]                      mdu_reg__rdst_idx_o,
@@ -81,12 +85,14 @@ module sy_ppl_mdu
 // Wire & Reg declaration
 //======================================================================================================================
 
+logic[MUL_STAGE-1:0][AWTH-1:0]      mul_npc_dlychain;
 logic[MUL_STAGE-1:0]                mul_act_dlychain;
 logic[MUL_STAGE-1:0]                mulh_act_dlychain;
 logic[MUL_STAGE-1:0][4:0]           mul_rdst_idx_dlychain;
 logic[MUL_STAGE-1:0]                mul_only_word;
 logic[127:0]                        mul_prod;
 logic                               div_type;
+logic[AWTH-1:0]                     div_npc;
 logic[4:0]                          div_rdst_idx;
 logic[4:0]                          div_cnt;
 logic                               div_only_word;
@@ -113,6 +119,7 @@ logic[DWTH-1:0]                     divisor;
 always_ff @(`DFF_CR(clk_i, rst_i)) begin
     if(`DFF_IS_R(rst_i)) begin
         for(integer i=0; i<MUL_STAGE; i=i+1) begin
+            mul_npc_dlychain[i] <= `TCQ AWTH'(0);           
             mul_act_dlychain[i] <= `TCQ 1'b0;
             mulh_act_dlychain[i] <= `TCQ 1'b0;
             mul_rdst_idx_dlychain[i] <= `TCQ 5'h0;
@@ -121,12 +128,14 @@ always_ff @(`DFF_CR(clk_i, rst_i)) begin
     end else begin
         if(ctrl_x__mem_kill_i) begin
             for(integer i=0; i<MUL_STAGE-1; i=i+1) begin
+                mul_npc_dlychain[i] <= `TCQ AWTH'(0);
                 mul_act_dlychain[i] <= `TCQ 1'b0;
                 mulh_act_dlychain[i] <= `TCQ 1'b0;
                 mul_rdst_idx_dlychain[i] <= `TCQ 5'h0;
                 mul_only_word[i] <= `TCQ 1'b0;
             end
         end else begin
+            mul_npc_dlychain <= `TCQ {mul_npc_dlychain, dec_mdu__npc_i};
             mul_act_dlychain <= `TCQ {mul_act_dlychain, dec_mdu__ex0_avail_i && dec_mdu__mdu_opcode_i == MDU_OP_MUL};
             mulh_act_dlychain <= `TCQ {mulh_act_dlychain, dec_mdu__ex0_avail_i && dec_mdu__mdu_opcode_i == MDU_OP_MULH};
             mul_rdst_idx_dlychain <= `TCQ {mul_rdst_idx_dlychain, dec_mdu__rdst_idx_i};
@@ -163,6 +172,7 @@ always_ff @(`DFF_CR(clk_i, rst_i)) begin
         div_sign <= 1'b0; 
         mdu_alu__div_wb_busy_o <= `TCQ 1'b0;
         div_only_word <= 1'b0;
+        div_npc <= `TCQ AWTH'(0);
     end else begin
         if(ctrl_x__mem_kill_i && (div_cnt > 5'h12)) begin // > 18
             div_cnt <= `TCQ 5'h0;
@@ -171,18 +181,21 @@ always_ff @(`DFF_CR(clk_i, rst_i)) begin
             div_type <= 1'b0;
             div_only_word <= 1'b0;
             div_sign <= 1'b0;
+            div_npc <= `TCQ AWTH'(0);
         end else if(dec_mdu__ex0_avail_i && dec_mdu__mdu_opcode_i == MDU_OP_DIV) begin
             div_type <= `TCQ 1'b0;
             div_rdst_idx <= `TCQ dec_mdu__rdst_idx_i;
             div_cnt <= `TCQ DIV_STAGE;
             div_only_word <= `TCQ dec_mdu__only_word_i;
             div_sign <= dec_mdu__rs1_sign_i;
+            div_npc <= `TCQ dec_mdu__npc_i;
         end else if(dec_mdu__ex0_avail_i && dec_mdu__mdu_opcode_i == MDU_OP_REM) begin
             div_type <= `TCQ 1'b1;
             div_rdst_idx <= `TCQ dec_mdu__rdst_idx_i;
             div_cnt <= `TCQ DIV_STAGE;
             div_only_word  <= `TCQ dec_mdu__only_word_i;
             div_sign <= dec_mdu__rs1_sign_i;
+            div_npc <= `TCQ dec_mdu__npc_i;
         end else begin
             div_cnt <= `TCQ (div_cnt == 5'h0) ? 5'h0 : div_cnt - 1'b1;
             mdu_alu__div_wb_busy_o <= `TCQ (div_cnt == 5'h2);
@@ -190,6 +203,7 @@ always_ff @(`DFF_CR(clk_i, rst_i)) begin
             div_type <= div_type;
             div_only_word <= div_only_word;
             div_sign <= div_sign;
+            div_npc <= div_npc;
         end
     end
 end
@@ -248,15 +262,21 @@ always_ff @(posedge clk_i) begin
         mdu_reg__rdst_en_o <= `TCQ (mul_rdst_idx_dlychain[MUL_STAGE-1] != 5'h0);
         mdu_reg__rdst_idx_o <= `TCQ mul_rdst_idx_dlychain[MUL_STAGE-1];
         mdu_reg__rdst_data_o <= `TCQ mul_only_word[MUL_STAGE-1] ? {{32{mul_prod[31]}}, mul_prod[31:0]} : mul_prod;
+        mdu_csr__retire_en_o <= `TCQ 1'b1;
+        mdu_csr__retire_npc_o <= `TCQ mul_npc_dlychain[MUL_STAGE-1];
     end else if(mulh_act_dlychain[MUL_STAGE-1]) begin
         mdu_reg__rdst_en_o <= `TCQ (mul_rdst_idx_dlychain[MUL_STAGE-1] != 5'h0);
         mdu_reg__rdst_idx_o <= `TCQ mul_rdst_idx_dlychain[MUL_STAGE-1];
         mdu_reg__rdst_data_o <= `TCQ mul_prod[127:64];
+        mdu_csr__retire_en_o <= `TCQ 1'b1;
+        mdu_csr__retire_npc_o <= `TCQ mul_npc_dlychain[MUL_STAGE-1];
     end else begin
         mdu_reg__rdst_en_o <= `TCQ mdu_alu__div_wb_busy_o && (div_rdst_idx != 5'h0);
         mdu_reg__rdst_idx_o <= `TCQ div_rdst_idx;
         mdu_reg__rdst_data_o <= `TCQ div_type ? (div_only_word ? {{32{rem_data_revised[31]}}, rem_data_revised[31:0]} : rem_data_revised)
                                     : (div_only_word ? {{32{quo_data_revised[31]}},quo_data_revised[31:0]} : quo_data_revised);
+        mdu_csr__retire_en_o <= `TCQ mdu_alu__div_wb_busy_o;
+        mdu_csr__retire_npc_o <= `TCQ div_npc;
     end
 end
 

@@ -107,6 +107,7 @@ module tl_probe_ctrl #(
     tl_pkg::source_t                                A_source_d, A_source_q;
     tl_pkg::address_t                               A_address_d,A_address_q;
     tl_pkg::size_t                                  A_size_d,A_size_q;
+    tl_pkg::mask_t                                  A_mask_d,A_mask_q;
     logic                                           is_acquire;
 
     logic                                           is_ProbeAck;
@@ -144,10 +145,11 @@ module tl_probe_ctrl #(
     logic                                           transaction_done2;
     logic                                           transaction_busy2;
     id_trans_e                                      put_what;   
-    logic [HART_ID_WTH+HART_ID_LSB-1:0]             put_who;
+    logic [tl_pkg::SOURCE_WTH-3:0]                  put_who;
+    // logic [HART_ID_WTH+HART_ID_LSB-1:0]             put_who;
     id_trans_e                                      transform;
     id_trans_e                                      get_what;
-    logic [HART_ID_WTH+HART_ID_LSB-1:0]             get_who;
+    logic [tl_pkg::SOURCE_WTH-3:0]                  get_who;
     logic                                           is_drop;
     logic                                           has_data;
     logic                                           d_normal_valid;
@@ -167,7 +169,8 @@ module tl_probe_ctrl #(
 
     // write data to next level memory
     assign put_what = is_releaseData ? TRANS_B : DROP;
-    assign put_who  = inp_C_bits_i.source[HART_ID_WTH+HART_ID_LSB-1:0];
+    // assign put_who  = inp_C_bits_i.source[HART_ID_WTH+HART_ID_LSB-1:0];
+    assign put_who  = inp_C_bits_i.source[tl_pkg::SOURCE_WTH-3:0];
 
     assign putfull_valid = inp_C_valid_i && (is_releaseData || is_ProbeAckData); 
     assign putfull_bits.opcode              = tl_pkg::PutFullData;
@@ -249,8 +252,10 @@ module tl_probe_ctrl #(
     // 4. AcquireBlock  --> GrantData
     // 5. Get           --> AccessAckData
     // we use source id to identify different situation
-    assign get_what = id_trans_e'(oup_D_bits_i.source[HART_ID_WTH+HART_ID_LSB+:2]);
-    assign get_who  = oup_D_bits_i.source[HART_ID_WTH+HART_ID_LSB-1:0];
+    // assign get_what = id_trans_e'(oup_D_bits_i.source[HART_ID_WTH+HART_ID_LSB+:2]);
+    // assign get_who  = oup_D_bits_i.source[HART_ID_WTH+HART_ID_LSB-1:0];
+    assign get_what = id_trans_e'(oup_D_bits_i.source[tl_pkg::SOURCE_WTH-2+:2]);
+    assign get_who  = oup_D_bits_i.source[tl_pkg::SOURCE_WTH-3:0];
 
     assign probeAckData_done = oup_D_valid_i && oup_D_ready_o && is_drop;  
 
@@ -394,6 +399,7 @@ module tl_probe_ctrl #(
     assign A_source_d           = (inp_A_valid_i && inp_A_ready_o) ? inp_A_bits_i.source : A_source_q;
     assign A_address_d          = (inp_A_valid_i && inp_A_ready_o) ? inp_A_bits_i.address: A_address_q;
     assign A_size_d             = (inp_A_valid_i && inp_A_ready_o) ? inp_A_bits_i.size   : A_size_q;
+    assign A_mask_d             = (inp_A_valid_i && inp_A_ready_o) ? inp_A_bits_i.mask   : A_mask_q;
 
 
     assign is_acquire = (A_opcode_q == tl_pkg::AcquireBlock) || (A_opcode_q == tl_pkg::AcquirePerm);
@@ -412,9 +418,10 @@ module tl_probe_ctrl #(
     assign tracker_bits.opcode              = tl_pkg::Get;
     assign tracker_bits.param               = A_param_q; 
     assign tracker_bits.size                = A_size_q;  
-    assign tracker_bits.source              = {transform, A_source_q[HART_ID_WTH+HART_ID_LSB-1:0]}; 
+    // assign tracker_bits.source              = {transform, A_source_q[HART_ID_WTH+HART_ID_LSB-1:0]}; 
+    assign tracker_bits.source              = {transform, A_source_q[tl_pkg::SOURCE_WTH-3:0]}; 
     assign tracker_bits.address             = A_address_q;
-    assign tracker_bits.mask                = 8'hff;
+    assign tracker_bits.mask                = A_mask_q;
     assign tracker_bits.data                = '0;
     assign tracker_bits.corrupt             = '0;
 //======================================================================================================================
@@ -497,6 +504,7 @@ module tl_probe_ctrl #(
             A_source_q          <= tl_pkg::source_t'('0);
             A_address_q         <= tl_pkg::address_t'('0);
             A_size_q            <= tl_pkg::size_t'('0);
+            A_mask_q            <= tl_pkg::mask_t'('0);
             cnt_q               <= '0; 
             who_use_A_q         <= '0; 
             cnt2_q              <= '0; 
@@ -513,6 +521,7 @@ module tl_probe_ctrl #(
             A_source_q          <= A_source_d;
             A_address_q         <= A_address_d;
             A_size_q            <= A_size_d;
+            A_mask_q            <= A_mask_d;
             cnt_q               <= cnt_d; 
             who_use_A_q         <= who_use_A_d; 
             cnt2_q              <= cnt2_d; 

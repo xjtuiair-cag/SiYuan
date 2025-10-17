@@ -29,8 +29,10 @@
 module sy_L2_cache  
   import sy_pkg::*;
 (
-  input  logic                               clk_i,
-  input  logic                               rst_i,
+  input  logic                            clk_i,
+  input  logic                            rst_i,
+  input  logic                            flush_en_i,
+  output logic                            flush_done_o,
   // =====================================
   // [TileLink Interface between L2 cache and Probe Ctrl]
   input  logic                            TL_A_valid_i,
@@ -76,12 +78,16 @@ module sy_L2_cache
   logic                            tag_req;
   L2_tag_req_t                     tag_req_bits;
   L2_tag_rsp_t                     tag_rsp_bits;
+  logic                            flush_L2_mem;
 //======================================================================================================================
 // Instance
 //======================================================================================================================
 sy_L2_cache_ctrl L2_cache_ctrl_inst(
     .clk_i              (clk_i),            
     .rst_i              (rst_i),            
+    .flush_en_i         (flush_en_i),
+    .flush_done_o       (flush_done_o),
+    .flush_L2_mem_en_o  (flush_L2_mem),
 
     .TL_A_valid_i       (TL_A_valid_i),                   
     .TL_A_ready_o       (TL_A_ready_o),                   
@@ -124,7 +130,7 @@ sy_L2_cache_mem L2_cache_mem_inst(
   .clk_i              (clk_i),
   .rst_i              (rst_i),
 
-  .flush_i            (1'b0), // TODO              
+  .flush_i            (flush_L2_mem), 
   
   .tag_req_i          (tag_req     ),
   .tag_req_bits_i     (tag_req_bits),

@@ -29,7 +29,7 @@
 package tl_pkg;
     localparam PARAM_WTH = 3;
     localparam SIZE_WTH = 8;
-    localparam SOURCE_WTH = 6;
+    localparam SOURCE_WTH = 10;
     localparam ADDRESS_WTH = 64;
     localparam DATA_WTH = 64;
     localparam MASK_WTH = 8;

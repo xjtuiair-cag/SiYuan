@@ -33,6 +33,9 @@ module sy_L2_cache_ctrl
 )(
     input  logic                            clk_i,
     input  logic                            rst_i,
+    input  logic                            flush_en_i,
+    output logic                            flush_done_o,
+    output logic                            flush_L2_mem_en_o,     
     // =====================================
     // [TileLink Interface between L2 cache and Probe Ctrl]
     input  logic                            TL_A_valid_i,
@@ -83,7 +86,7 @@ module sy_L2_cache_ctrl
 // Wire & Reg declaration
 //======================================================================================================================
     typedef enum logic[3:0] {IDLE,READ_TAG,IS_HIT,WRITE_DATA,WRITE_RSP,READ_DATA,IS_DIRTY,
-                      WRITE_BACK_REQ,WRITE_BACK,WAIT_B_RSP,REFILL_REQ,REFILL,REPLAY_REQ} state_e;
+                      WRITE_BACK_REQ,WRITE_BACK,WAIT_B_RSP,REFILL_REQ,REFILL,REPLAY_REQ,FLUSH_REQ,FLUSH_WAIT,FLUSH} state_e;
     state_e state_d, state_q;
     
     logic [63:0]                        addr_d, addr_q;
@@ -92,6 +95,7 @@ module sy_L2_cache_ctrl
     tl_pkg::data_t                      tmp_data_d, tmp_data_q;
     tl_pkg::mask_t                      mask_d, mask_q;
     logic [2:0]                         tl_opcode_d, tl_opcode_q; 
+    logic [AXI_TRANS_CNT_WTH:0]         addr_offset_d,addr_offset_q;
     logic [AXI_TRANS_CNT_WTH:0]         trans_cnt_d, trans_cnt_q;
     logic [L2_CACHE_TAG_LSB-1:0]        data_req_idx;
     logic [AXI_TRANS_CNT_WTH:0]         data_req_cnt;
@@ -118,12 +122,18 @@ module sy_L2_cache_ctrl
     logic                               update_cl_dirty;
     logic [L2_CACHE_DATA_SIZE*8-1:0]    cache_wdata;
     logic                               update_lru;
-    logic[L2_CACHE_SET_WTH-1:0]         update_lru_set;
-    logic[L2_CACHE_WAY_WTH-1:0]         update_lru_way;
-    logic[L2_CACHE_SET_WTH-1:0]         lookup_lru_set;
-    logic[L2_CACHE_WAY_WTH-1:0]         lookup_lru_way;
+    logic [L2_CACHE_SET_WTH-1:0]        update_lru_set;
+    logic [L2_CACHE_WAY_WTH-1:0]        update_lru_way;
+    logic [L2_CACHE_SET_WTH-1:0]        lookup_lru_set;
+    logic [L2_CACHE_WAY_WTH-1:0]        lookup_lru_way;
     logic                               axi_or_tl; // 0 for tl, 1 for axi             
-
+    logic                               flush_flight_d,flush_flight_q;
+    logic [L2_CACHE_SET_WTH:0]          flush_set_d,flush_set_q;
+    logic [L2_CACHE_WAY_NUM-1:0]        flush_dirty_cl_d,flush_dirty_cl_q;
+    logic                               flush_no_dirty_cl;
+    logic [L2_CACHE_WAY_WTH-1:0]        flush_dirty_way_idx;
+    logic                               flush_done; 
+    logic [L2_CACHE_WAY_WTH-1:0]        handle_way;
 //======================================================================================================================
 // cache hit 
 //======================================================================================================================
@@ -158,8 +168,13 @@ module sy_L2_cache_ctrl
 //======================================================================================================================
 // AXI AW/AR/W channel
 //======================================================================================================================
+  always_comb begin
+    AXI_AW_bits_o.addr   = {32'b0,cl_tag_q[handle_way],addr_q[L2_CACHE_SET_MSB-1:L2_CACHE_SET_LSB],{L2_CACHE_BLOCK_WTH{1'b0}}};
+    if (flush_flight_q) begin
+      AXI_AW_bits_o.addr = {32'b0,cl_tag_q[handle_way],flush_set_q[L2_CACHE_SET_WTH-1:0],{L2_CACHE_BLOCK_WTH{1'b0}}};     
+    end
+  end
   assign AXI_AW_bits_o.id     = AXI_ID;
-  assign AXI_AW_bits_o.addr   = {32'b0,cl_tag_q[rpl_way],addr_q[L2_CACHE_SET_MSB-1:L2_CACHE_SET_LSB],{L2_CACHE_BLOCK_WTH{1'b0}}};
   assign AXI_AW_bits_o.len    = AXI_TRANS_CNT-1;
   assign AXI_AW_bits_o.size   = 3'b011;
   assign AXI_AW_bits_o.burst  = axi_pkg::BURST_INCR; 
@@ -178,15 +193,16 @@ module sy_L2_cache_ctrl
   assign AXI_AR_bits_o.prot   = 3'b1; 
   assign AXI_AR_bits_o.qos    = '0; 
 
-  assign AXI_W_bits_o.data    = data_rsp_bits_i.rd_data[rpl_way];
-  assign AXI_W_bits_o.strb    = mask_q;
+  assign AXI_W_bits_o.data    = data_rsp_bits_i.rd_data[handle_way];
+  assign AXI_W_bits_o.strb    = 8'hFF;
   assign AXI_W_bits_o.last    = axi_w_last; 
 //======================================================================================================================
 // Access Cache Mem
 //======================================================================================================================
   assign tag_req_bits_o.we        = cache_tag_we;
   assign tag_req_bits_o.way_en    = cache_tag_we ? (state_q == WRITE_RSP ? hit_way_q : rpl_way_one_hot) : {L2_CACHE_WAY_NUM{1'b1}}; 
-  assign tag_req_bits_o.idx       = addr_q[L2_CACHE_TAG_LSB-1:0];
+  assign tag_req_bits_o.idx       = flush_flight_q ? {flush_set_q[L2_CACHE_SET_WTH-1:0],{L2_CACHE_BLOCK_WTH{1'b0}}} 
+                                            : addr_q[L2_CACHE_TAG_LSB-1:0];
   assign tag_req_bits_o.tag_valid = cache_tag_we ? 1'b1 : 1'b0;
   assign tag_req_bits_o.tag       = cache_tag_we ? addr_q[L2_CACHE_TAG_MSB-1:L2_CACHE_TAG_LSB] : '0;
   assign tag_req_bits_o.dirty     = update_cl_dirty;  
@@ -199,11 +215,15 @@ module sy_L2_cache_ctrl
       cache_wdata = AXI_R_bits_i.data;
     end
   end
-  assign data_req_cnt = cache_data_we ? trans_cnt_q : trans_cnt_d;
+  assign data_req_cnt = cache_data_we ? addr_offset_q : addr_offset_d;
   always_comb begin
     data_req_idx = {addr_q[L2_CACHE_TAG_LSB-1:L2_CACHE_BLOCK_MSB-1],data_req_cnt[AXI_TRANS_CNT_WTH-2:0],3'b0};
     if (axi_or_tl) begin
-      data_req_idx = {addr_q[L2_CACHE_TAG_LSB-1:L2_CACHE_BLOCK_MSB],data_req_cnt[AXI_TRANS_CNT_WTH-1:0],3'b0};     
+      if (flush_flight_q) begin
+        data_req_idx = {flush_set_q[L2_CACHE_SET_WTH-1:0], data_req_cnt[AXI_TRANS_CNT_WTH-1:0],3'b0};            
+      end else begin
+        data_req_idx = {addr_q[L2_CACHE_TAG_LSB-1:L2_CACHE_BLOCK_MSB],data_req_cnt[AXI_TRANS_CNT_WTH-1:0],3'b0};     
+      end
     end
   end
   assign data_req_bits_o.we       = cache_data_we;
@@ -231,7 +251,7 @@ module sy_L2_cache_ctrl
   // find invalid cache line
   lzc #(
     .WIDTH ( L2_CACHE_WAY_NUM)
-  ) i_lzc_inv (
+  ) cl_valid_inst(
     .in_i    ( ~cl_valid_q       ), 
     .cnt_o   ( inv_way           ),
     .empty_o ( all_ways_valid    )
@@ -241,6 +261,19 @@ module sy_L2_cache_ctrl
   for (genvar i = 0; i < L2_CACHE_WAY_NUM; i++) begin
     assign rpl_way_one_hot[i] = (rpl_way == i) ? 1'b1: 1'b0;
   end
+//======================================================================================================================
+// Flush
+//======================================================================================================================
+  // find invalid cache line
+  lzc #(
+    .WIDTH ( L2_CACHE_WAY_NUM)
+  ) cl_dirty_inst(
+    .in_i    ( ~flush_dirty_cl_q ), 
+    .cnt_o   ( flush_dirty_way_idx),
+    .empty_o ( flush_no_dirty_cl )
+  );
+  assign flush_done = flush_set_q[L2_CACHE_SET_WTH];
+  assign handle_way = flush_flight_q ? flush_dirty_way_idx : rpl_way;
 //======================================================================================================================
 // FSM
 //======================================================================================================================
@@ -261,13 +294,15 @@ module sy_L2_cache_ctrl
     tmp_data_d  = tmp_data_q;
     tl_opcode_d = tl_opcode_q; 
     mask_d      = mask_q;
-
+    addr_offset_d = addr_offset_q;
     trans_cnt_d = trans_cnt_q;
     hit_way_idx_d = hit_way_idx_q;
     hit_way_d   = hit_way_q;
     cl_valid_d  = cl_valid_q;
     cl_dirty_d  = cl_dirty_q;
     cl_tag_d    = cl_tag_q;
+    flush_flight_d = flush_flight_q;
+    flush_set_d = flush_set_q;
 
     data_req_o      = 1'b0;
 
@@ -281,24 +316,33 @@ module sy_L2_cache_ctrl
     TL_D_opcode     = tl_pkg::AccessAck;
     update_lru      = 1'b0;
     update_lru_way  = '0;
+    flush_done_o    = 1'b0;
+    flush_L2_mem_en_o = 1'b0;
     unique case (state_q)
         // wait for an incoming request
         IDLE: begin
-          TL_A_ready_o = 1'b1;
-          if (TL_A_valid_i) begin
-            addr_d      = TL_A_bits_i.address;
-            size_d      = TL_A_bits_i.size;
-            source_d    = TL_A_bits_i.source;
-            tmp_data_d  = TL_A_bits_i.data;
-            tl_opcode_d = TL_A_bits_i.opcode;
-            mask_d      = TL_A_bits_i.mask;
-            state_d     = READ_TAG;
+          if (flush_en_i) begin
+            state_d = FLUSH_REQ;  
+            flush_flight_d = 1'b1; 
+            flush_set_d = '0;
+          end else begin
+            TL_A_ready_o = 1'b1;
+            if (TL_A_valid_i) begin
+              addr_d      = TL_A_bits_i.address;
+              size_d      = TL_A_bits_i.size;
+              source_d    = TL_A_bits_i.source;
+              tmp_data_d  = TL_A_bits_i.data;
+              tl_opcode_d = TL_A_bits_i.opcode;
+              mask_d      = TL_A_bits_i.mask;
+              state_d     = READ_TAG;
+            end
           end
         end
         READ_TAG : begin
           tag_req_o = 1'b1;
           state_d   = IS_HIT;
-          trans_cnt_d       = '0;
+          trans_cnt_d = '0;
+          addr_offset_d = addr_q[L2_CACHE_BLOCK_MSB:L2_CACHE_DATA_MSB];
         end
         // read data and tag from cache mem and check whether we have a hit
         IS_HIT: begin
@@ -312,12 +356,13 @@ module sy_L2_cache_ctrl
             update_lru = 1'b1; // update lru registers when cache hit
             update_lru_way = hit_way_idx_d;
             if (tl_opcode_q == tl_pkg::PutFullData) begin
-              state_d = WRITE_DATA;
+              state_d = (size_q == 0) ? WRITE_RSP : WRITE_DATA;
               data_req_o        = 1'b1; // write first data to L2 cache
               axi_or_tl         = 1'b0;
               cache_data_we     = 1'b1;
               write_first_data  = 1'b1;
               trans_cnt_d       = trans_cnt_q + 1;
+              addr_offset_d = addr_offset_q + 1;
             end else begin
               state_d = READ_DATA;
               data_req_o = 1'b1;
@@ -336,6 +381,7 @@ module sy_L2_cache_ctrl
             axi_or_tl = 1'b0;
             cache_data_we = 1'b1;
             trans_cnt_d = trans_cnt_q + 1'b1;
+            addr_offset_d = addr_offset_q + 1;
             if (trans_cnt_q == size_q) begin
               state_d = WRITE_RSP;
             end
@@ -360,6 +406,7 @@ module sy_L2_cache_ctrl
           TL_D_opcode = tl_pkg::AccessAckData;
           if (TL_D_ready_i) begin
             trans_cnt_d = trans_cnt_q + 1'b1;
+            addr_offset_d = addr_offset_q + 1;
             if (trans_cnt_q == size_q) begin
               state_d = IDLE;
             end
@@ -367,9 +414,10 @@ module sy_L2_cache_ctrl
         end
         // check whether we cache line that will be replaced is dirty 
         IS_DIRTY: begin
+          trans_cnt_d = '0;
+          addr_offset_d = '0;
           if (cl_is_dirty) begin
             state_d = WRITE_BACK_REQ;
-            trans_cnt_d = '0;
           end else begin
             state_d = REFILL_REQ; 
           end  
@@ -391,6 +439,7 @@ module sy_L2_cache_ctrl
           axi_w_last = (trans_cnt_q == AXI_TRANS_CNT - 1);
           if (AXI_W_ready_i) begin
             trans_cnt_d = trans_cnt_q + 1'b1;  
+            addr_offset_d = addr_offset_q + 1'b1;
             if (trans_cnt_q == AXI_TRANS_CNT - 1) begin
               state_d = WAIT_B_RSP;
             end
@@ -400,7 +449,8 @@ module sy_L2_cache_ctrl
         WAIT_B_RSP: begin
           AXI_B_ready_o = 1'b1; 
           if (AXI_B_valid_i) begin
-            state_d = REFILL_REQ;
+            state_d = flush_flight_q ? FLUSH : REFILL_REQ;
+            flush_dirty_cl_d[flush_dirty_way_idx] = 1'b0; 
           end
         end
         // use axi ar channel to send read request
@@ -416,6 +466,7 @@ module sy_L2_cache_ctrl
           AXI_R_ready_o = 1'b1;
           if (AXI_R_valid_i) begin
             trans_cnt_d = trans_cnt_q + 1'b1;
+            addr_offset_d = addr_offset_q + 1'b1;
             data_req_o  = 1'b1;
             axi_or_tl   = 1'b1;
             cache_data_we = 1'b1;
@@ -432,7 +483,34 @@ module sy_L2_cache_ctrl
         REPLAY_REQ: begin
           tag_req_o = 1'b1;
           trans_cnt_d = '0;
+          addr_offset_d = addr_q[L2_CACHE_BLOCK_MSB:L2_CACHE_DATA_MSB];
           state_d = IS_HIT;
+        end
+        FLUSH_REQ: begin
+          if (flush_done) begin
+            flush_done_o = 1'b1;
+            flush_L2_mem_en_o = 1'b1;
+            flush_flight_d = 1'b0;
+            state_d = IDLE;
+          end else begin
+            tag_req_o = 1'b1;
+            state_d = FLUSH_WAIT;
+          end
+        end
+        FLUSH_WAIT: begin
+          flush_dirty_cl_d = cl_dirty & cl_valid;
+          cl_tag_d = cl_tag;
+          state_d = FLUSH;
+        end
+        FLUSH: begin
+          if (flush_no_dirty_cl) begin
+            state_d = FLUSH_REQ;
+            flush_set_d = flush_set_q + 1'b1;
+          end else begin
+            trans_cnt_d = '0;
+            addr_offset_d = '0;
+            state_d = WRITE_BACK_REQ;
+          end
         end
         default: begin
           state_d = IDLE;
@@ -453,11 +531,15 @@ module sy_L2_cache_ctrl
         mask_q        <= '0;
         tl_opcode_q   <= '0; 
         trans_cnt_q   <= '0;
+        addr_offset_q <= '0;
         hit_way_idx_q <= '0;
         hit_way_q     <= '0;
         cl_valid_q    <= '0;
         cl_tag_q      <= '0;
         cl_dirty_q    <= '0;
+        flush_flight_q<= '0;
+        flush_set_q   <= '0;
+        flush_dirty_cl_q<= '0;
       end else begin
         state_q       <= state_d;
         addr_q        <= addr_d;
@@ -467,11 +549,15 @@ module sy_L2_cache_ctrl
         mask_q        <= mask_d;
         tl_opcode_q   <= tl_opcode_d; 
         trans_cnt_q   <= trans_cnt_d;
+        addr_offset_q <= addr_offset_d;
         hit_way_idx_q <= hit_way_idx_d;
         hit_way_q     <= hit_way_d;
         cl_valid_q    <= cl_valid_d;
         cl_tag_q      <= cl_tag_d;
         cl_dirty_q    <= cl_dirty_d;
+        flush_flight_q<= flush_flight_d;
+        flush_set_q   <= flush_set_d;
+        flush_dirty_cl_q<= flush_dirty_cl_d;
       end
   end
 //======================================================================================================================

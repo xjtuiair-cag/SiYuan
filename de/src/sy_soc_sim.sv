@@ -44,8 +44,13 @@ module sy_soc_sim
     output logic                            spi_mosi    ,
     input  logic                            spi_miso    ,
     output logic                            spi_ss      ,
-    output logic                            spi_clk_o   
-
+    output logic                            spi_clk_o   ,  
+    // JTAG
+    input  logic                            tck         ,
+    input  logic                            tms         ,
+    input  logic                            trst_n      ,
+    input  logic                            tdi         ,
+    output wire                             tdo         
 );
 
 //======================================================================================================================
@@ -62,6 +67,11 @@ module sy_soc_sim
 //======================================================================================================================
     logic [CORE_NUM-1:0]    timer_irq;
     logic [CORE_NUM-1:0]    ipi;
+    logic                   cpu_rst_n;
+    logic                   flush_L2_cache_en;
+    logic                   flush_L2_cache_done;
+    logic                   ndmreset;
+    logic                   debug_req_irq;
 
     TL_BUS sys_bus_master   [CORE_NUM:0](); // Core + DMA
     TL_BUS sys_bus_slave    [SYS_BUS_SLAVE_NUM-1:0]();
@@ -75,8 +85,12 @@ module sy_soc_sim
     TL_BUS npu_bus_master   [0:0]();
     TL_BUS npu_bus_slave    [NPU_BUS_SLAVE_NUM-1:0]();
 
+    TL_BUS mem_bus_master   [NPU_BUS_SLAVE_NUM-1:0]();
+    TL_BUS mem_bus_slave    [0:0]();
+
     logic [SOURCE_NUM-1:0]          irq_sources;
     logic [TARGET_NUM-1:0]          irq_target;
+
     logic             [PORT_NUM-1:0]  ddr_axi_aw_valid;
     logic             [PORT_NUM-1:0]  ddr_axi_aw_ready;         
     axi_pkg::aw_chan_t[PORT_NUM-1:0]  ddr_axi_aw_bits;
@@ -92,6 +106,17 @@ module sy_soc_sim
     logic             [PORT_NUM-1:0]  ddr_axi_b_valid;
     logic             [PORT_NUM-1:0]  ddr_axi_b_ready;
     axi_pkg::b_chan_t [PORT_NUM-1:0]  ddr_axi_b_bits;
+
+//======================================================================================================================
+// Reset Gen
+//======================================================================================================================
+    rstgen rstgen_inst(
+        .clk_i        ( clk_i                    ),
+        .rst_ni       ( rst_i & (~ndmreset)      ),
+        .test_mode_i  ( 1'b0                     ),
+        .rst_no       ( cpu_rst_n                ),
+        .init_no      (                          ) // keep open
+    );
 //======================================================================================================================
 // Hart 
 //======================================================================================================================
@@ -105,7 +130,7 @@ module sy_soc_sim
     //             .HART_ID        (i)
     //         ) u_sy_inst(
     //             .clk_i                      (clk_i      ),                          
-    //             .rst_i                      (rst_i      ),                          
+    //             .rst_i                      (cpu_rst_n ),                          
     //             .boot_addr_i                (boot_addr_i),          
     //             .irq_i                      (irq_target[MSB:LSB]),    
     //             .ipi_i                      (ipi[i]),    
@@ -120,15 +145,14 @@ module sy_soc_sim
         .HART_ID        (0)
     ) u_sy_inst(
         .clk_i                      (clk_i      ),                          
-        .rst_i                      (rst_i      ),                          
+        .rst_i                      (cpu_rst_n  ),                          
         .boot_addr_i                (boot_addr_i),          
         .irq_i                      (irq_target[1:0]),    
         .ipi_i                      (ipi[0]),    
-        .debug_req_i                (1'b0),          
+        .debug_req_i                (debug_req_irq),          
         .time_irq_i                 (timer_irq[0]),         
         .master                     (sys_bus_master[0])
     ); 
-
 //======================================================================================================================
 // System Bus
 //======================================================================================================================
@@ -148,7 +172,7 @@ module sy_soc_sim
         .SLAVE_BUF_DEPTH       (1)
     ) system_bus(
         .clk_i                 (clk_i),
-        .rst_i                 (rst_i),
+        .rst_i                 (cpu_rst_n),
         .master                (sys_bus_master),
         .slave                 (sys_bus_slave),
         .start_addr_i          (sys_bus_start_addr ),
@@ -161,7 +185,7 @@ module sy_soc_sim
     // ---------------
     // TileLink Xbar
     // ---------------
-    tl_xbar #(
+    sy_tl_xbar #(
         .MASTER_NUM       (1),
         .SLAVE_NUM        (CTRL_BUS_SLAVE_NUM),
         .REGION_NUM       (CTRL_BUS_REGION),
@@ -169,10 +193,12 @@ module sy_soc_sim
         .SOURCE_MSB       (CTRL_BUS_SRC_MSB),
         .SINK_LSB         (1),
         .SINK_MSB         (4),
-        .TL_ADDR_WIDTH    (64)
+        .TL_ADDR_WIDTH    (64),
+        .MASTER_BUF_DEPTH (1),
+        .SLAVE_BUF_DEPTH  (1)
     ) ctrl_bus(
         .clk_i            ( clk_i         ),
-        .rst_i            ( rst_i         ),
+        .rst_i            ( cpu_rst_n     ),
         .master           ( ctrl_bus_master),
         .slave            ( ctrl_bus_slave),
         .start_addr_i     ( ctrl_bus_start_addr),
@@ -186,7 +212,7 @@ module sy_soc_sim
     // ---------------
     // TileLink Xbar
     // ---------------
-    tl_xbar #(
+    sy_tl_xbar #(
         .MASTER_NUM       (1),
         .SLAVE_NUM        (PHRI_BUS_SLAVE_NUM),
         .REGION_NUM       (PHRI_BUS_REGION),
@@ -194,10 +220,12 @@ module sy_soc_sim
         .SOURCE_MSB       (PHRI_BUS_SRC_MSB),
         .SINK_LSB         (1),
         .SINK_MSB         (4),
-        .TL_ADDR_WIDTH    (64)
+        .TL_ADDR_WIDTH    (64),
+        .MASTER_BUF_DEPTH (1),
+        .SLAVE_BUF_DEPTH  (1)
     ) phri_bus(
         .clk_i            ( clk_i         ),
-        .rst_i            ( rst_i         ),
+        .rst_i            ( cpu_rst_n     ),
         .master           ( phri_bus_master),
         .slave            ( phri_bus_slave),
         .start_addr_i     ( phri_bus_start_addr),
@@ -211,7 +239,7 @@ module sy_soc_sim
     // ---------------
     // TileLink Xbar
     // ---------------
-    tl_xbar #(
+    sy_tl_xbar #(
         .MASTER_NUM       (1),
         .SLAVE_NUM        (NPU_BUS_SLAVE_NUM),
         .REGION_NUM       (NPU_BUS_REGION),
@@ -219,10 +247,12 @@ module sy_soc_sim
         .SOURCE_MSB       (NPU_BUS_SRC_MSB),
         .SINK_LSB         (1),
         .SINK_MSB         (4),
-        .TL_ADDR_WIDTH    (64)
+        .TL_ADDR_WIDTH    (64),
+        .MASTER_BUF_DEPTH (1),
+        .SLAVE_BUF_DEPTH  (1)
     ) npu_bus(
         .clk_i            ( clk_i         ),
-        .rst_i            ( rst_i         ),
+        .rst_i            ( cpu_rst_n     ),
         .master           ( npu_bus_master),
         .slave            ( npu_bus_slave),
         .start_addr_i     ( npu_bus_start_addr),
@@ -239,8 +269,10 @@ module sy_soc_sim
         .HART_ID_LSB    (1)
     ) main_mem(
         .clk_i            (clk_i),
-        .rst_i            (rst_i),
+        .rst_i            (cpu_rst_n),
         .master           (sys_bus_slave[DMEM]),
+        .flush_L2_cache_en_i (flush_L2_cache_en),
+        .flush_L2_cache_done_o (flush_L2_cache_done),
         // AXI4 interface
         .oup_axi_aw_valid_o           (ddr_axi_aw_valid[0]),            
         .oup_axi_aw_ready_i           (ddr_axi_aw_ready[0]),                     
@@ -285,33 +317,28 @@ module sy_soc_sim
       .inp_axi_b_bits_o    (ddr_axi_b_bits  )
     );
 //======================================================================================================================
-// BootRom
+// RegMap (ctrl bus)
 //======================================================================================================================
-    sy_bootrom bootrom_inst(
-        .clk_i       (clk_i),
-        .rst_i       (rst_i),
-        .master      (ctrl_bus_slave[ROM])
+    sy_regmap #(
+        .BASE_ADDR  (REGMAPBase),
+        .ADDR_WIDTH (32),
+        .DATA_WIDTH (32),
+        .SOURCE     (0)
+    ) regmap_inst(
+        .clk_i                  (clk_i),       
+        .rst_i                  (cpu_rst_n),      
+
+        .master                 (ctrl_bus_slave[REGMAP]),
+
+        .flush_L2_cache_en_o    (flush_L2_cache_en  ),                       
+        .flush_L2_cache_done_i  (flush_L2_cache_done)
     );
 //======================================================================================================================
-// DMA
-//======================================================================================================================
-    sy_dma # (
-        .BASE_ADDR  (DMABase),
-        .ADDR_WIDTH (64),
-        .DATA_WIDTH (64),
-        .SOURCE     (CORE_NUM) 
-    ) dma_inst(
-        .clk_i          (clk_i),       
-        .rst_i          (rst_i),      
-        .master         (npu_bus_slave[DMA]), 
-        .slave          (sys_bus_master[CORE_NUM]) 
-    );
-//======================================================================================================================
-// Clint    
+// Clint (ctrl bus)    
 //======================================================================================================================
     logic rtc;
-    always_ff @(posedge clk_i or negedge rst_i) begin
-      if (~rst_i) begin
+    always_ff @(posedge clk_i or negedge cpu_rst_n) begin
+      if (~cpu_rst_n) begin
         rtc <= 0;
       end else begin
         rtc <= rtc ^ 1'b1;
@@ -324,15 +351,15 @@ module sy_soc_sim
         .CORES_NUM    (CORE_NUM) 
     ) clint(
         .clk_i          (clk_i),                 
-        .rst_i          (rst_i),                
+        .rst_i          (cpu_rst_n),                
         .testmode_i     ('0),               
         .rtc_i          (rtc),                 
         .timer_irq_o    (timer_irq),                 
         .ipi_o          (ipi),                 
         .master         (ctrl_bus_slave[CLINT])
-    ); 
+    );
 //======================================================================================================================
-// Plic    
+// Plic (ctrl bus)  
 //======================================================================================================================
     sy_plic #(
         .ADDR_WIDTH   (32),
@@ -342,7 +369,7 @@ module sy_soc_sim
         .TARGET_NUM   (TARGET_NUM)
     ) plic(
         .clk_i          (clk_i),              
-        .rst_i          (rst_i),             
+        .rst_i          (cpu_rst_n),             
 
         .irq_sources_i  (irq_sources),               
         .irq_target_o   (irq_target),              
@@ -350,12 +377,20 @@ module sy_soc_sim
         .master         (ctrl_bus_slave[PLIC])
     );
 //======================================================================================================================
-// Uart   
+// BootRom (phri bus)
+//======================================================================================================================
+    sy_bootrom bootrom_inst(
+        .clk_i       (clk_i),
+        .rst_i       (cpu_rst_n),
+        .master      (phri_bus_slave[ROM])
+    );
+//======================================================================================================================
+// Uart (phri bus)   
 //======================================================================================================================
     logic rx,tx;
     sy_uart uart(
         .clk_i          (clk_i),         
-        .rst_i          (rst_i),         
+        .rst_i          (cpu_rst_n),         
         .rx_i           (rx),        
         .tx_o           (tx),        
         .irq_o          (irq_sources[0]),     
@@ -373,7 +408,7 @@ module sy_soc_sim
             .DATA_WIDTH     (8)
         ) u_uart_rec(
             .clk          (clk_i        ) ,
-            .rstn         (rst_i        ) , 
+            .rstn         (cpu_rst_n    ) , 
             .uart_rx      (tx           ) ,    
             .rx_done      (rx_done      ) ,    
             .rece_data    (rx_data      )  
@@ -394,13 +429,12 @@ module sy_soc_sim
             end 
         end
     `endif 
-
 //======================================================================================================================
 // SPI
 //======================================================================================================================
     sy_spi spi(
         .clk_i          (clk_i),    
-        .rst_i          (rst_i),    
+        .rst_i          (cpu_rst_n),    
     
         .irq_o          (irq_sources[1]),    
     
@@ -410,41 +444,113 @@ module sy_soc_sim
         .spi_ss         (spi_ss),         
     
         .master         (phri_bus_slave[SPI])
-    );       
+    );
 //======================================================================================================================
-// NPU 
+// Debug (npu bus)
 //======================================================================================================================
-        if (NPU_EN) begin
-            sy_npu npu(
-                .clk_i              (clk_i),       
-                .rst_i              (rst_i),     
+    sy_debug # (
+        .SOURCE ({2'b0,(MEM_BUS_SRC_LSB-1)'(CORE_NUM)}) // TODO
+    ) debug_inst(
+        .clk_i          (clk_i),       
+        .rst_i          (rst_i),      
+        .cpu_rst_n      (cpu_rst_n),
+        // JTAG interface
+        .tck            (tck   ),
+        .tms            (tms   ),
+        .trst_n         (trst_n),
+        .tdi            (tdi   ),
+        .tdo            (tdo   ),        
+        // reset
+        .ndmreset       (ndmreset),
+        .debug_req_irq  (debug_req_irq),
+        // used to read/write register
+        .master         (npu_bus_slave[DEBUG]), 
+        // used to access system bus
+        .slave          (mem_bus_master[DEBUG]) 
+    );
+//======================================================================================================================
+// DMA (npu bus)
+//======================================================================================================================
+    sy_dma # (
+        .BASE_ADDR  (DMABase),
+        .ADDR_WIDTH (64),
+        .DATA_WIDTH (64),
+        .SOURCE     ({2'b1,(MEM_BUS_SRC_LSB-1)'(CORE_NUM)}) // 
+    ) dma_inst(
+        .clk_i          (clk_i),       
+        .rst_i          (cpu_rst_n),      
+        .master         (npu_bus_slave[DMA]), 
+        .slave          (mem_bus_master[DMA]) 
+    );
+    tl_xbar #(
+        .MASTER_NUM       (NPU_BUS_SLAVE_NUM),
+        .SLAVE_NUM        (1),
+        .REGION_NUM       (1),
+        .SOURCE_LSB       (MEM_BUS_SRC_LSB),
+        .SOURCE_MSB       (MEM_BUS_SRC_MSB),
+        .SINK_LSB         (1),
+        .SINK_MSB         (4),
+        .TL_ADDR_WIDTH    (64)
+    ) mem_bus(
+        .clk_i            ( clk_i         ),
+        .rst_i            ( cpu_rst_n     ),
+        .master           ( mem_bus_master),
+        .slave            ( mem_bus_slave ),
+        .start_addr_i     ( mem_bus_start_addr),
+        .end_addr_i       ( mem_bus_end_addr),
+        .region_en_i      ( mem_bus_region_en)
+    );
+    tl_master2slave mem_bus_trans(.master(mem_bus_slave[0]), .slave(sys_bus_master[CORE_NUM]));
+//======================================================================================================================
+// FFT (npu bus)
+//======================================================================================================================
+    sy_fft #(
+        .SOURCE         ({2'b10,(MEM_BUS_SRC_LSB-1)'(CORE_NUM)}),
+        .BASE_ADDR      (FFTBase),
+        .ADDR_WIDTH     (32),
+        .DATA_WIDTH     (32)
+    ) fft_inst(
+        .clk_i            (clk_i),           
+        .rst_i            (cpu_rst_n),           
+        // TL bus, used to read/write regs
+        .master           (npu_bus_slave[FFT]),
+        // Access Mem
+        .slave            (mem_bus_master[FFT])
+    );
+//======================================================================================================================
+// NPU (npu bus)
+//======================================================================================================================
+    if (NPU_EN) begin
+        sy_npu npu(
+            .clk_i              (clk_i),       
+            .rst_i              (cpu_rst_n),     
 
-                .axi_aw_valid_o     (ddr_axi_aw_valid[1]),        
-                .axi_aw_ready_i     (ddr_axi_aw_ready[1]),                 
-                .axi_aw_bits_o      (ddr_axi_aw_bits [1]),       
-                .axi_ar_valid_o     (ddr_axi_ar_valid[1]),        
-                .axi_ar_ready_i     (ddr_axi_ar_ready[1]),                 
-                .axi_ar_bits_o      (ddr_axi_ar_bits [1]),       
-                .axi_w_valid_o      (ddr_axi_w_valid [1]),       
-                .axi_w_ready_i      (ddr_axi_w_ready [1]),                
-                .axi_w_bits_o       (ddr_axi_w_bits  [1]),      
-                .axi_r_valid_i      (ddr_axi_r_valid [1]),       
-                .axi_r_ready_o      (ddr_axi_r_ready [1]),       
-                .axi_r_bits_i       (ddr_axi_r_bits  [1]),       
-                .axi_b_valid_i      (ddr_axi_b_valid [1]),       
-                .axi_b_ready_o      (ddr_axi_b_ready [1]),       
-                .axi_b_bits_i       (ddr_axi_b_bits  [1]),      
+            .axi_aw_valid_o     (ddr_axi_aw_valid[1]),        
+            .axi_aw_ready_i     (ddr_axi_aw_ready[1]),                 
+            .axi_aw_bits_o      (ddr_axi_aw_bits [1]),       
+            .axi_ar_valid_o     (ddr_axi_ar_valid[1]),        
+            .axi_ar_ready_i     (ddr_axi_ar_ready[1]),                 
+            .axi_ar_bits_o      (ddr_axi_ar_bits [1]),       
+            .axi_w_valid_o      (ddr_axi_w_valid [1]),       
+            .axi_w_ready_i      (ddr_axi_w_ready [1]),                
+            .axi_w_bits_o       (ddr_axi_w_bits  [1]),      
+            .axi_r_valid_i      (ddr_axi_r_valid [1]),       
+            .axi_r_ready_o      (ddr_axi_r_ready [1]),       
+            .axi_r_bits_i       (ddr_axi_r_bits  [1]),       
+            .axi_b_valid_i      (ddr_axi_b_valid [1]),       
+            .axi_b_ready_o      (ddr_axi_b_ready [1]),       
+            .axi_b_bits_i       (ddr_axi_b_bits  [1]),      
 
-                .npu_mem             (npu_bus_slave[NPU_DRAM]),
-                .npu_reg             (npu_bus_slave[NPU])
-            );           
-        end else begin
-            assign ddr_axi_aw_valid[1] = '0;
-            assign ddr_axi_ar_valid[1] = '0;
-            assign ddr_axi_w_valid[1] = '0;
-            assign ddr_axi_r_ready[1] = '0;
-            assign ddr_axi_b_ready[1] = '0;
-        end
+            .npu_mem             (npu_bus_slave[NPU_DRAM]),
+            .npu_reg             (npu_bus_slave[NPU])
+        );           
+    end else begin
+        assign ddr_axi_aw_valid[1] = '0;
+        assign ddr_axi_ar_valid[1] = '0;
+        assign ddr_axi_w_valid[1] = '0;
+        assign ddr_axi_r_ready[1] = '0;
+        assign ddr_axi_b_ready[1] = '0;
+    end
 
 //======================================================================================================================
 // Ethernet (TODO)

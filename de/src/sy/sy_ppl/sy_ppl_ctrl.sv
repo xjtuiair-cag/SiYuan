@@ -65,6 +65,7 @@ module sy_ppl_ctrl
     //! Current stage works only if CTRL module sends act signal to FETCH module. If act is zero, FETCH module stop
     //! getting instruction from ITCM.
     output  logic                           ctrl_fet__act_o,
+    output  logic                           ctrl_fet__step_o,
     //Status of FET module
     input   logic                           fet_ctrl__if0_act_i,
     input   logic                           fet_ctrl__id0_act_i,
@@ -88,13 +89,14 @@ module sy_ppl_ctrl
     input   logic[63:0]                     alu_ctrl__wb_npc_i,
     // =====================================
     // [from ppl_csr]
+    input   logic                           csr_ctrl__single_step_i,
     input   logic                           csr_ctrl__eret_i,
     input   logic[63:0]                     csr_ctrl__epc_i,
     input   logic[63:0]                     csr_ctrl__trap_vec_i,
     // input   logic                           csr_ctrl__wfi_wakeup_i,
     input   logic                           csr_ctrl__set_debug_i,
     input   logic                           csr_ctrl__ex_valid_i,
-    input   logic                           csr_ctrl__debug_mode_i,
+    // input   logic                           csr_ctrl__debug_mode_i,
     input   logic                           csr_ctrl__flush_i
 );
 
@@ -104,16 +106,18 @@ module sy_ppl_ctrl
 parameter STALL_CYCLE = 10;
 
 typedef enum logic[4:0] {
-    FSM_RESET = 0,
-    FSM_INIT_CUR_PC = 1,
-    FSM_PROC_EVENT = 2,
-    FSM_RUN = 3,
-    FSM_PAUSE = 4,
-    FSM_INVALID_IC = 5,
-    FSM_SLEEP = 6,
-    FSM_FLUSH_TLB = 7,
-    FSM_INVALID_DC = 8,
-    FSM_STALL = 9
+    FSM_RESET       ,
+    FSM_INIT_CUR_PC ,
+    FSM_PROC_EVENT  ,
+    FSM_RUN         ,
+    FSM_PAUSE       ,
+    FSM_INVALID_IC  ,
+    FSM_SLEEP       ,
+    FSM_FLUSH_TLB   ,
+    FSM_INVALID_DC  ,
+    FSM_STALL       ,      
+    FSM_STEP        ,
+    FSM_STEP_WAIT
 } ctrl_fsm_e;
 
 //======================================================================================================================
@@ -127,6 +131,7 @@ logic[AWTH-1:0]                     cur_pc;
 logic                               ctrl_debug_req;
 logic                               ctrl_excp_req;
 logic                               ctrl_xret_req;
+logic                               ctrl_single_step_req;
 logic                               ctrl_sleep_req;
 logic                               ctrl_invld_ic_req;
 logic                               ctrl_invld_dc_req;
@@ -137,6 +142,7 @@ logic[AWTH-1:0]                     cur_pc_q;
 logic                               ctrl_debug_req_q;
 logic                               ctrl_excp_req_q;
 logic                               ctrl_xret_req_q;
+logic                               ctrl_single_step_req_q;
 logic                               ctrl_sleep_req_q;
 logic                               ctrl_invld_ic_req_q;
 logic                               ctrl_invld_dc_req_q;
@@ -168,6 +174,7 @@ always_comb begin
     // output signals
     // -- Drive the pipelien to work
     ctrl_fet__act_o = 1'b0;
+    ctrl_fet__step_o = 1'b0;
     // -- Sy core status and information signals
     stat_sleep_o = 1'b0;
     ppl_icache_flush_o = 1'b0;
@@ -176,6 +183,7 @@ always_comb begin
     // inner variables
     ctrl_excp_req = ctrl_excp_req_q;
     ctrl_xret_req = ctrl_xret_req_q;
+    ctrl_single_step_req = ctrl_single_step_req_q;
     ctrl_sleep_req = ctrl_sleep_req_q;
     ctrl_invld_ic_req = ctrl_invld_ic_req_q;
     ctrl_invld_dc_req = ctrl_invld_dc_req_q;
@@ -184,15 +192,18 @@ always_comb begin
     set_npc_en = 1'b0;
 
     // generate the next PC
-    if(csr_ctrl__ex_valid_i) begin
+    if(csr_ctrl__set_debug_i) begin
+        ctrl_debug_req = 1'b1;
+        cur_pc = SyDefaultConfig.DmBaseAddress + dm::HaltAddress;
+    end else if(csr_ctrl__ex_valid_i) begin
         cur_pc = csr_ctrl__trap_vec_i;
         ctrl_excp_req = 1'b1;
-    end else if(csr_ctrl__eret_i) begin
+    end else if(csr_ctrl__eret_i && csr_ctrl__single_step_i) begin
+        cur_pc = csr_ctrl__epc_i;
+        ctrl_single_step_req = 1'b1;
+    end else if (csr_ctrl__eret_i) begin
         cur_pc = csr_ctrl__epc_i;
         ctrl_xret_req = 1'b1;
-    end else if(csr_ctrl__set_debug_i) begin
-        ctrl_debug_req = 1'b1;
-        cur_pc = SyDefaultConfig.DmBaseAddress + dbg_pkg::HaltAddress;
     end
     // // system instr
     // if(alu_ctrl__wfi_en_i && !csr_ctrl__debug_mode_i && !csr_ctrl__ex_valid_i) begin
@@ -254,6 +265,10 @@ always_comb begin
                     next_state = FSM_RUN;
                     ctrl_xret_req = 1'b0;
                     flush_bp_o = 1'b1;
+                end else if (ctrl_single_step_req) begin
+                    next_state = FSM_STEP;   
+                    ctrl_single_step_req = 1'b0;
+                    flush_bp_o = 1'b1;
                 end else begin
                     next_state = FSM_RUN;
                 end
@@ -261,8 +276,8 @@ always_comb begin
         end
         FSM_RUN: begin
             ctrl_fet__act_o = 1'b1;
-            if(ctrl_halt_i || ctrl_excp_req || ctrl_debug_req || ctrl_xret_req || ctrl_flush_tlb_req || ctrl_sleep_req || ctrl_invld_ic_req
-                || csr_ctrl__flush_i || ctrl_invld_dc_req) begin
+            if(ctrl_halt_i || ctrl_excp_req || ctrl_debug_req || ctrl_xret_req || ctrl_flush_tlb_req || 
+               ctrl_sleep_req || ctrl_invld_ic_req || csr_ctrl__flush_i || ctrl_invld_dc_req || ctrl_single_step_req) begin
                 next_state = FSM_PAUSE;
             end
         end
@@ -307,6 +322,23 @@ always_comb begin
                 next_state = FSM_PROC_EVENT;
             end
         end
+        // fetch single instruction
+        FSM_STEP: begin
+            ctrl_fet__act_o = 1'b1;
+            ctrl_fet__step_o = 1'b1;
+            if (fet_ctrl__if0_act_i) begin
+                next_state = FSM_STEP_WAIT;
+            end
+        end
+        // WAIT debug req 
+        FSM_STEP_WAIT: begin
+            // ctrl_fet__step_o = 1'b1;
+            if (ctrl_debug_req) begin
+                next_state = FSM_PAUSE;   
+            end else begin
+                next_state = FSM_STEP_WAIT;
+            end
+        end
         default:;
     endcase
     // If CPU receives reset signal, the FSM jump to POWER_ON state immediately.
@@ -346,6 +378,7 @@ always_ff @(`DFF_CR(clk_i, rst_i)) begin
         ctrl_excp_req_q <= `TCQ 1'b0;
         ctrl_xret_req_q <= `TCQ 1'b0;
         ctrl_sleep_req_q <= `TCQ 1'b0;
+        ctrl_single_step_req_q <= `TCQ 1'b0;    
         ctrl_invld_ic_req_q <= `TCQ 1'b0;
         ctrl_invld_dc_req_q <= `TCQ 1'b0;
         ctrl_flush_tlb_req_q <= `TCQ 1'b0;
@@ -357,6 +390,7 @@ always_ff @(`DFF_CR(clk_i, rst_i)) begin
         ctrl_excp_req_q <= `TCQ ctrl_excp_req;
         ctrl_xret_req_q <= `TCQ ctrl_xret_req;
         ctrl_sleep_req_q <= `TCQ ctrl_sleep_req;
+        ctrl_single_step_req_q <= `TCQ ctrl_single_step_req;
         ctrl_invld_ic_req_q <= `TCQ ctrl_invld_ic_req;
         ctrl_invld_dc_req_q <= `TCQ ctrl_invld_dc_req;
         ctrl_flush_tlb_req_q <= `TCQ ctrl_flush_tlb_req;

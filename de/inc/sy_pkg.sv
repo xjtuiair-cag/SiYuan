@@ -184,6 +184,15 @@ localparam sy_cfg_t SyDefaultConfig = '{
   // debug
   DmBaseAddress:          64'h0
 };
+// static debug hartinfo
+localparam dm::hartinfo_t DebugHartInfo = '{
+                                            zero1:        '0,
+                                            nscratch:      2, // Debug module needs at least two scratch regs
+                                            zero0:        '0,
+                                            dataaccess: 1'b1, // data registers are memory mapped in the debugger
+                                            datasize: dm::DataCount,
+                                            dataaddr: dm::DataAddr
+                                          };
 //----------------------------------------------------------------------------------------------------------------------
 // Parameters
 //----------------------------------------------------------------------------------------------------------------------
@@ -1353,6 +1362,7 @@ typedef struct packed {
 //----------------------------------------------------------------------------------------------------------------------
 // Functions
 //----------------------------------------------------------------------------------------------------------------------
+
 function automatic logic range_check(logic[63:0] base, logic[63:0] len, logic[63:0] address);
     // if len is a power of two, and base is properly aligned, this check could be simplified
     return (address >= base) && (address < (base+len));

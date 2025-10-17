@@ -67,6 +67,7 @@ module TL2Reg_be
     logic [ADDR_WIDTH-1:0]                  address_d, address_q;
     logic [7:0]                             mask_d, mask_q;
     logic [63:0]                            rdata_d, rdata_q;
+    logic                                   is_low_32bit;
 //======================================================================================================================
 // Instance
 //======================================================================================================================
@@ -75,16 +76,16 @@ module TL2Reg_be
     assign TL_D_bits_o.size             = tl_pkg::size_t'(0);
     assign TL_D_bits_o.source           = source_q;
     assign TL_D_bits_o.sink             = tl_pkg::sink_t'(0);
-    assign TL_D_bits_o.data             = rdata_q;
+    assign TL_D_bits_o.data             = addr_o[2] ? (rdata_i << 32) : rdata_i;
     assign TL_D_bits_o.denied           = 1'b0;
     assign TL_D_bits_o.corrupt          = 1'b0;
 
-    // assign rdata_d      = address_q[2] ? (rdata_i << 32) : rdata_i;
-    assign rdata_d      = rdata_i;
+    assign is_low_32bit = mask_d[3:0] != '0;
 
-    assign addr_o       = address_d;
-    assign wdata_o      = TL_A_bits_i.data;
-    assign be_o         = mask_d;
+    assign addr_o       = address_d + (is_low_32bit ? 4'h0 : 4'h4);
+    assign wdata_o      = is_low_32bit ? TL_A_bits_i.data : (TL_A_bits_i.data >> 32);
+
+    assign be_o         = is_low_32bit ? mask_d : (mask_d >> 4);
 
     always_comb begin
         state_d     = state_q;

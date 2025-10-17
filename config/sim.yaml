@@ -3,5 +3,6 @@ Uart: True # Uart must be true
 SPI: True
 GPIO: False
 DMA: True
+FFT: True
 NPU: False
 Ethernet: False

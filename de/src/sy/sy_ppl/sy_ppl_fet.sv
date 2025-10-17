@@ -55,6 +55,7 @@ module sy_ppl_fet
     //! Current stage works only if CTRL module sends act signal to FETCH module. If act is zero, FETCH module stop
     //! getting instruction from ITCM.
     input   logic                           ctrl_fet__act_i,
+    input   logic                           ctrl_fet__step_i,
     //！Status of IF0 and ID0 stages
     output  logic                           fet_ctrl__if0_act_o,
     output  logic                           fet_ctrl__id0_act_o,
@@ -242,7 +243,7 @@ always_ff @(posedge clk_i) begin
     end
 end
 
-assign fetch_valid = ppl_imem__rvld_dly && imem_ppl__hit && if0_avail;
+assign fetch_valid = ppl_imem__rvld_dly && imem_ppl__hit && if0_avail && ctrl_fet__act_i;
 assign flush_buffer = ctrl_x__id0_kill_i || alu_x__mispred_en_i;
 assign shamt = if0_pc[1];
 assign fet_data = icache_fet__drsp_i.data >> {shamt,4'b0};
@@ -288,7 +289,7 @@ sy_ppl_instr_buffer instr_buffer_inst(
     .clk_i                          (clk_i),  
     .rst_ni                         (rst_i),   
     .flush_i                        (flush_buffer),    
-    .fet_valid_i                    (fet_valid),        
+    .fet_valid_i                    (fet_valid & {~ctrl_fet__step_i,1'b1}),        
     .fet_pc_i                       (fet_pc),       
     .fet_npc_i                      (fet_npc),       
     .fet_instr_i                    (instr_data),        

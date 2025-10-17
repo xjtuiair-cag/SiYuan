@@ -44,7 +44,7 @@ module sy_ppl_csr_regfile
     input   logic[HART_ID_WTH-1:0]          hart_id_i,
     input   logic                           debug_req_i,
     output  logic                           halt_o,
-
+    output  logic                           single_step_o,
     // csr operation interface
     input   logic                           alu_csr__valid_i,
     input   lb_cmd_e                        alu_csr__cmd_i,
@@ -58,6 +58,11 @@ module sy_ppl_csr_regfile
     input   logic                           alu_csr__dirty_fp_state_i,
     input   logic[4:0]                      alu_csr__fflags_i,     
     input   logic                           alu_csr__wfi_i,
+    // retire instr
+    input   logic                           alu_csr__retire_en_i,
+    input   logic[AWTH-1:0]                 alu_csr__retire_npc_i,
+    input   logic                           mdu_csr__retire_en_i,
+    input   logic[AWTH-1:0]                 mdu_csr__retire_npc_i,
     // from ctrl module
     input   logic                           alu_csr__mret_i,
     input   logic                           alu_csr__sret_i,
@@ -76,7 +81,7 @@ module sy_ppl_csr_regfile
     output  logic[63:0]                     csr_ctrl__epc_o,
     output  logic                           csr_ctrl__ex_valid_o,
     output  logic[63:0]                     csr_ctrl__trap_vec_o,
-    output  logic                           csr_ctrl__wfi_wakeup_o,
+    // output  logic                           csr_ctrl__wfi_wakeup_o,
     output  logic                           csr_ctrl__set_debug_o,
     output  logic                           csr_ctrl__debug_mode_o,
     output  logic                           csr_ctrl__flush_o,
@@ -303,7 +308,7 @@ module sy_ppl_csr_regfile
     always_comb begin: write_csr
         automatic satp_t satp;
         satp = satp_q;
-        debug_mode_d = 1'b0;
+        debug_mode_d = debug_mode_q;
         csr_ctrl__set_debug_o = 1'b0;
         instret_d = instret_q;
         cycle_d = cycle_q;
@@ -394,8 +399,11 @@ module sy_ppl_csr_regfile
                 // debug csr
                 CSR_DCSR: begin
                     dcsr_d = csr_wdata[31:0];
+                    // debug is implemented
                     dcsr_d.xdebugver = 4'h4;
+                    // privilege level
                     dcsr_d.prv = priv_lvl_q;
+                    // currently not supported
                     dcsr_d.nmip = 1'b0;
                     dcsr_d.stopcount = 1'b0;
                     dcsr_d.stoptime = 1'b0;
@@ -602,9 +610,19 @@ module sy_ppl_csr_regfile
             priv_lvl_d = trap_to_priv_lvl;
         end 
 
-        // handle debug
+        // ------------------------------
+        // Debug
+        // ------------------------------
+        // Explains why Debug Mode was entered.
+        // When there are multiple reasons to enter Debug Mode in a single cycle, hardware should set cause to the cause with the highest priority.
+        // 1: An ebreak instruction was executed. (priority 3)
+        // 2: The Trigger Module caused a breakpoint exception. (priority 4)
+        // 3: The debugger requested entry to Debug Mode. (priority 2)
+        // 4: The hart single stepped because step was set. (priority 1)
+        // we are currently not in debug mode and could potentially enter
         if(!debug_mode_q) begin
             dcsr_d.prv = priv_lvl_o;
+            // caused by a breakpoint
             if(ex.valid && ex.cause == BREAKPOINT) begin
                 unique case(priv_lvl_o)
                     PRIV_LVL_M: begin
@@ -622,15 +640,34 @@ module sy_ppl_csr_regfile
                     default:;
                 endcase
                 dpc_d = pc;
-                dcsr_d.cause = dbg_pkg::CauseBreakpoint;
+                dcsr_d.cause = dm::CauseBreakpoint;
             end
-
+            // debug request
             if(ex.valid && ex.cause == DEBUG_REQUEST) begin
+                // save pc
                 dpc_d = pc;
+                // set debug mode 
                 debug_mode_d = 1'b1;
                 csr_ctrl__set_debug_o = 1'b1;
-                dcsr_d.cause = dbg_pkg::CauseRequest;
+                // save cause
+                dcsr_d.cause = dm::CauseRequest;
             end  
+            // single step  
+            if (dcsr_q.step && (alu_csr__retire_en_i || mdu_csr__retire_en_i)) begin
+                // exception valid
+                if (ex.valid) begin
+                    dpc_d = csr_ctrl__trap_vec_o;
+                // return from environment
+                end else if (csr_ctrl__eret_o) begin
+                    dpc_d = csr_ctrl__epc_o;
+                // consecutive PC
+                end else begin
+                    dpc_d = alu_csr__retire_en_i ? alu_csr__retire_npc_i : mdu_csr__retire_npc_i;
+                end
+                debug_mode_d = 1'b1;
+                csr_ctrl__set_debug_o = 1'b1;
+                dcsr_d.cause = dm::CauseSingleStep;
+            end
         end
 
         if(debug_mode_q && ex.valid && ex.cause == BREAKPOINT) begin
@@ -664,6 +701,7 @@ module sy_ppl_csr_regfile
         if(dret) begin
             csr_ctrl__eret_o = 1'b1;
             priv_lvl_d = priv_lvl_t'(dcsr_q.prv);
+            debug_mode_d = 1'b0;
         end
     end
 //======================================================================================================================
@@ -749,7 +787,7 @@ module sy_ppl_csr_regfile
             wfi_d = 1'b0;
         // or alternatively if there is no exception pending and we are not in debug mode wait here
         // for the interrupt
-        end else if (!debug_mode_q && alu_csr__wfi_i && !ex.valid) begin
+        end else if (!debug_mode_q && alu_csr__wfi_i && !ex.valid && !single_step_o) begin
             wfi_d = 1'b1;
         end
     end
@@ -794,7 +832,7 @@ module sy_ppl_csr_regfile
             csr_ctrl__trap_vec_o = {stvec_q[63:2], 2'b0};
         end 
         if(debug_mode_q) begin
-            csr_ctrl__trap_vec_o = SyDefaultConfig.DmBaseAddress + dbg_pkg::ExceptionAddress;
+            csr_ctrl__trap_vec_o = SyDefaultConfig.DmBaseAddress + dm::ExceptionAddress;
         end
         if((mtvec_q[0] || stvec_q[0]) && ex.cause[63]) begin
             csr_ctrl__trap_vec_o[7:2] = ex.cause[5:0];
@@ -829,7 +867,8 @@ module sy_ppl_csr_regfile
     assign dcache_en_o              = dcache_q[0];
     assign mprv                     = (debug_mode_q && !dcsr_q.mprven) ? 1'b0 : mstatus_q.mprv;  
 
-    assign fs_o = mstatus_q.fs;
+    assign fs_o                     = mstatus_q.fs;
+    assign single_step_o            = dcsr_q.step;
     // assign fs_o = is_Dirty;
 
     assign debug_mode_o             = debug_mode_q;
