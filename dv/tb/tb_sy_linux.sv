@@ -43,6 +43,12 @@ module tb_sy_linux;
         .spi_miso                               (),
         .spi_ss                                 (),
         .spi_clk_o                              (),
+        // JTAG
+        .tck                                    ('0),
+        .tms                                    ('0),
+        .trst_n                                 ('0),
+        .tdi                                    ('0),
+        .tdo                                    (),
         // =====================================
         .boot_addr_i                            (64'h1_0000)                    
     );

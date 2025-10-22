@@ -78,6 +78,19 @@ run_spi: prepare_log_dir prepare_comp_dir prepare_sim_dir prepare_ref_dir softwa
 	${COMP_DIR}/sy.simv +vcs+initreg+0 -cm line+branch+cond+tgl+fsm+assert \
 	-l run.log +ntb_random_seed=${SEED} $(GUI)
 
+run_fft: prepare_log_dir prepare_comp_dir prepare_sim_dir prepare_ref_dir software
+	cp ${SOFTWARE_DIR}/output/* ${SIM_DIR}/; \
+	cd ${SIM_DIR}; \
+	${COMP_DIR}/sy.simv +vcs+initreg+0 -cm line+branch+cond+tgl+fsm+assert \
+	-l run.log +ntb_random_seed=${SEED} $(GUI)
+
+run_debug: prepare_log_dir prepare_comp_dir prepare_sim_dir prepare_ref_dir software
+	cp ${SOFTWARE_DIR}/output/* ${SIM_DIR}/; \
+	cd ${SIM_DIR}; \
+	${COMP_DIR}/sy.simv +vcs+initreg+0 -cm line+branch+cond+tgl+fsm+assert \
+	-sv_lib $(SIM_DIR)/libsimjtag \
+	-l run.log +ntb_random_seed=${SEED} $(GUI)
+
 run_riscv_test: prepare_log_dir prepare_comp_dir prepare_sim_dir prepare_ref_dir riscv_test_software
 	cd ${SIM_DIR}; \
 	${COMP_DIR}/sy.simv +vcs+initreg+0 -cm line+branch+cond+tgl+fsm+assert \

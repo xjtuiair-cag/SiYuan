@@ -42,7 +42,7 @@ int main()
 
     Dma_init();
     // Trans data between DDR and DDR
-    Dma_trans_cfg(0x9a200000,0x80100000,16,16,1024*16,NORMAL_TRANS_MODE);
+    Dma_trans_cfg(0x9a200000,0x80100000,16,16,1024*16,NORMAL_RD_TRANS_MODE);
     Dma_start();
     // check if dma trans is done
     while(1) {
@@ -55,9 +55,9 @@ int main()
 
     // check if dma trans is right
     if(dma_check((uint64_t*)data_arr, (uint64_t*)ref_arr, 1024 * 16) < 0){
-        print_uart("---------SPI TEST CASE 2 FAILED--------\r\n");
+        print_uart("---------DMA TEST CASE 0 FAILED--------\r\n");
     }  else {
-        print_uart("---------SPI TEST CASE 2 SUCCESS--------\r\n");
+        print_uart("---------DMA TEST CASE 0 SUCCESS--------\r\n");
     }
 
     while (1);  // do nothing

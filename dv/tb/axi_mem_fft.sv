@@ -1,7 +1,7 @@
 // +FHDR------------------------------------------------------------------------
 // XJTU IAIR Corporation All Rights Reserved
 // -----------------------------------------------------------------------------
-// FILE NAME  : axi_mem_riscv_tests.v
+// FILE NAME  : axi_mem_fft.v
 // DEPARTMENT : CAG of IAIR
 // AUTHOR     : shenghuanliu
 // AUTHOR'S EMAIL :liushenghuan2002@gmail.com
@@ -91,11 +91,14 @@ module axi_mem_sim# (
     localparam ADDR_BIT = $clog2(ADDR_WTH);
     localparam DATA_BIT = $clog2(DATA_WTH);
     localparam MEM_BIT = $clog2(MEM_SIZE);
-    localparam BENOS_START = 64'h80200000;
-    localparam SBI_START = 64'h80000000;
+    localparam DDR1_START = 64'h82000000;
+    localparam DDR0_START = 64'h81000000;
+    localparam DDR_START  = 64'h80000000;
 
-    logic[DATA_WTH-1:0]                     rmt_mem_sbi[MEM_SIZE/DATA_WTH*8-1 : 0]; //8000_0000 -- 8001_0000
-    logic[DATA_WTH-1:0]                     rmt_mem_benos[MEM_SIZE/DATA_WTH*8-1 : 0]; // 8020_0000 -- 8021_0000   
+
+    logic[DATA_WTH-1:0]                     rmt_mem_ddr0[MEM_SIZE/DATA_WTH*8-1 : 0]; //8000_0000 -- 8001_0000
+    logic[DATA_WTH-1:0]                     rmt_mem_ddr1[MEM_SIZE/DATA_WTH*8-1 : 0]; // 8020_0000 -- 8021_0000   
+    logic[DATA_WTH-1:0]                     rmt_mem_code[MEM_SIZE/DATA_WTH*8-1 : 0]; //8000_0000 -- 8001_0000
 
     logic[ADDR_WTH-1:0]                     cmd_waddr;
     logic[ID_WIDTH-1:0]                     cmd_wid;
@@ -116,8 +119,11 @@ module axi_mem_sim# (
     logic[ADDR_WTH-1:0]                     raddr;
     logic[ADDR_WTH-1:0]                     waddr;
 
-    logic                                   wr_sbi_or_benos; // 1 for sbi , 0 for benos
-    logic                                   rd_sbi_or_benos;
+    logic                                   wr_code_or_ddr; // 0 for code, 1 for ddr
+    logic                                   rd_code_or_ddr;
+    logic                                   wr_ddr0_or_ddr1; // 0 for ddr0, 1 for ddr1
+    logic                                   rd_ddr0_or_ddr1;
+
 //======================================================================================================================
 // Instance
 //======================================================================================================================
@@ -127,16 +133,16 @@ module axi_mem_sim# (
     initial begin
         #10;
         // sbi memory
-        $readmemh("ddr.dat", rmt_mem_sbi);
-        // $display("SBI Memory contents:");
-        // for (int i = 0; i < 100; i++)
-        //     $display("memory[%0d] = %h", i, rmt_mem_sbi[i]);
-
-        // // benos memory
-        // $readmemh("benos.dat", rmt_mem_benos);
-        // $display("benos Memory contents:");
-        // for (int i = 0; i < 100; i++)
-        //     $display("memory[%0d] = %h", i, rmt_mem_benos[i]);
+        $readmemh("ddr.dat", rmt_mem_code);
+        // $display("Memory contents:");
+        // for (int i = 0; i < 20; i++)
+        //     $display("memory[%0d] = %h", i, rmt_mem_code[i]);
+        // sbi memory
+        $readmemh("fft_input.dat", rmt_mem_ddr0);
+        $readmemh("fft_output_ref.dat", rmt_mem_ddr1);
+        // $display("DDR0 Memory contents:");
+        // for (int i = 0; i < 20; i++)
+        //     $display("memory[%0d] = %h", i, rmt_mem_ddr0[i]);
     end
 
     // -----
@@ -187,11 +193,17 @@ module axi_mem_sim# (
     assign wready = wready_org && (blk_cnt == BLK_NUM);
 
     always_comb begin
-        waddr = cmd_waddr - SBI_START;
-        wr_sbi_or_benos = 1'b1;
-        if(cmd_waddr >= BENOS_START) begin
-            waddr = cmd_waddr - BENOS_START;
-            wr_sbi_or_benos = 1'b0;
+        waddr = cmd_waddr - DDR_START;
+        wr_code_or_ddr = 1'b0;
+        wr_ddr0_or_ddr1 = 1'b0;
+        if(cmd_waddr >= DDR0_START && cmd_waddr < DDR1_START) begin
+            waddr = cmd_waddr - DDR0_START;
+            wr_code_or_ddr = 1'b1;
+            wr_ddr0_or_ddr1 = 1'b0;
+        end else if (cmd_waddr >= DDR1_START) begin
+            waddr = cmd_waddr - DDR1_START;
+            wr_code_or_ddr = 1'b1;
+            wr_ddr0_or_ddr1 = 1'b1;
         end
     end
 
@@ -200,11 +212,14 @@ module axi_mem_sim# (
     always @(posedge clk_i) begin
         if(wvalid && wready) begin
             for(integer i=0; i<DATA_WTH/8; i=i+1) begin
-                if(wstrb[i] && wr_sbi_or_benos) begin
-                    rmt_mem_sbi[{waddr[MEM_BIT-1:12],cmd_woffset}][i*8 +: 8] <= wdata[i*8 +: 8];
+                if(wstrb[i] && !wr_code_or_ddr) begin
+                    rmt_mem_code[{waddr[MEM_BIT-1:12],cmd_woffset}][i*8 +: 8] <= wdata[i*8 +: 8];
+                end else if(wstrb[i] && !wr_ddr0_or_ddr1) begin
+                    rmt_mem_ddr0[{waddr[MEM_BIT-1:12],cmd_woffset}][i*8 +: 8] <= wdata[i*8 +: 8];
                 end else if(wstrb[i]) begin
-                    rmt_mem_benos[{waddr[MEM_BIT-1:12],cmd_woffset}][i*8 +: 8] <= wdata[i*8 +: 8];
+                    rmt_mem_ddr1[{waddr[MEM_BIT-1:12],cmd_woffset}][i*8 +: 8] <= wdata[i*8 +: 8];
                 end
+
             end
         end
     end
@@ -282,11 +297,17 @@ module axi_mem_sim# (
     end
 
     always_comb begin
-        raddr = cmd_raddr - SBI_START;
-        rd_sbi_or_benos = 1'b1;
-        if(cmd_raddr >= BENOS_START) begin
-            raddr = cmd_raddr - BENOS_START;
-            rd_sbi_or_benos = 1'b0;
+        raddr = cmd_raddr - DDR_START;
+        rd_code_or_ddr = 1'b0;
+        rd_ddr0_or_ddr1 = 1'b0;
+        if(cmd_raddr >= DDR0_START && cmd_raddr < DDR1_START) begin
+            raddr = cmd_raddr - DDR0_START;
+            rd_code_or_ddr = 1'b1;
+            rd_ddr0_or_ddr1 = 1'b0;
+        end else if (cmd_raddr >= DDR1_START) begin
+            raddr = cmd_raddr - DDR1_START;
+            rd_code_or_ddr = 1'b1;
+            rd_ddr0_or_ddr1 = 1'b1;
         end
     end
 
@@ -296,9 +317,11 @@ module axi_mem_sim# (
     assign rid = cmd_rid;
 
     always_comb begin
-        rdata = rmt_mem_sbi[{raddr[MEM_BIT-1:12], cmd_roffset}];
-        if(!rd_sbi_or_benos) begin
-            rdata = rmt_mem_benos[{raddr[MEM_BIT-1:12], cmd_roffset}];
+        rdata = rmt_mem_code[{raddr[MEM_BIT-1:12], cmd_roffset}];
+        if(rd_code_or_ddr && !rd_ddr0_or_ddr1) begin
+            rdata = rmt_mem_ddr0[{raddr[MEM_BIT-1:12], cmd_roffset}];
+        end else if (rd_code_or_ddr && rd_ddr0_or_ddr1) begin
+            rdata = rmt_mem_ddr1[{raddr[MEM_BIT-1:12], cmd_roffset}];
         end
     end
 
@@ -312,17 +335,4 @@ module axi_mem_sim# (
 //======================================================================================================================
 // probe signals
 //======================================================================================================================
-    logic[ADDR_WTH-1:0]                             prb_raddr_true;
-    logic[ADDR_WTH-1:0]                             prb_waddr_true;
-    logic[ADDR_WTH-1:0]                             prb_raddr_off;
-    logic[ADDR_WTH-1:0]                             prb_waddr_off;
-    logic                                           prb_wr_type;
-    logic                                           prb_rd_type;
-
-    assign prb_raddr_true = cmd_raddr;
-    assign prb_waddr_true = cmd_waddr;
-    assign prb_raddr_off = raddr; 
-    assign prb_waddr_off = waddr;
-    assign prb_wr_type = wr_sbi_or_benos;
-    assign prb_rd_type = rd_sbi_or_benos;
 endmodule : axi_mem_sim

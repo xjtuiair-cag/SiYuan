@@ -32,7 +32,7 @@ module tb_sy_riscv_test;
 logic                           clk;
 logic                           rst;
 
-`define DCACHE_CTRL soc_inst.u_sy_inst.L1_cache.i_dcache_inst.dcache_ctrl_inst
+`define DCACHE_CTRL soc_inst.gen_hart[0].u_sy_inst.L1_cache.i_dcache_inst.dcache_ctrl_inst
 
 sy_soc_sim #(
     .DDR_SIZE (64*1024*1024)
@@ -46,6 +46,12 @@ sy_soc_sim #(
     .spi_miso                               (),
     .spi_ss                                 (),
     .spi_clk_o                              (),
+    // JTAG
+    .tck                                    ('0),
+    .tms                                    ('0),
+    .trst_n                                 ('0),
+    .tdi                                    ('0),
+    .tdo                                    (),
     // =====================================
     .boot_addr_i                            (64'h80000000)                    // input   logic[AWTH-1:0]                 
 );

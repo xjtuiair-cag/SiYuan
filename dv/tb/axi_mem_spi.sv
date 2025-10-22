@@ -1,7 +1,7 @@
 // +FHDR------------------------------------------------------------------------
 // XJTU IAIR Corporation All Rights Reserved
 // -----------------------------------------------------------------------------
-// FILE NAME  : axi_mem_dma.v
+// FILE NAME  : axi_mem_spi.v
 // DEPARTMENT : CAG of IAIR
 // AUTHOR     : shenghuanliu
 // AUTHOR'S EMAIL :liushenghuan2002@gmail.com
