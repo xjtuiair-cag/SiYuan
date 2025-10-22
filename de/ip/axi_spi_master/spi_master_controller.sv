@@ -557,31 +557,4 @@ module spi_master_controller
   assign spi_csn2 = ~spi_csreg[2] | spi_cs;
   assign spi_csn3 = ~spi_csreg[3] | spi_cs;
 
-(* mark_debug = "true" *) logic       prb_spi_clk;
-(* mark_debug = "true" *) logic       prb_spi_mosi;
-(* mark_debug = "true" *) logic       prb_spi_miso;
-(* mark_debug = "true" *) logic       prb_spi_ss;
-assign prb_spi_clk    = spi_clk;
-assign prb_spi_mosi   = spi_sdo0;
-assign prb_spi_miso   = spi_sdi1;
-assign prb_spi_ss     = spi_csn0;
-
-(* mark_debug = "true" *) logic[6:0]      prb_spi_status;
-(* mark_debug = "true" *) logic[15:0]     prb_spi_cnt_tx;
-(* mark_debug = "true" *) logic           prb_spi_cnt_tx_valid;
-(* mark_debug = "true" *) logic[15:0]     prb_spi_cnt_rx;
-(* mark_debug = "true" *) logic           prb_spi_cnt_rx_valid;
-(* mark_debug = "true" *) logic           prb_spi_clk_en;
-(* mark_debug = "true" *) logic           prb_spi_tx_en;
-(* mark_debug = "true" *) logic           prb_spi_rx_en;
-
-assign prb_spi_status = spi_status;
-assign prb_spi_cnt_tx = counter_tx;
-assign prb_spi_cnt_tx_valid = counter_tx_valid;
-assign prb_spi_cnt_rx = counter_rx;
-assign prb_spi_cnt_rx_valid = counter_rx_valid;
-assign prb_spi_clk_en = spi_clock_en;
-assign prb_spi_tx_en = spi_en_tx;
-assign prb_spi_rx_en = spi_en_rx;
-
 endmodule

@@ -809,16 +809,6 @@ module sy_dcache_missunit
       end
   end
 
-
-(* mark_debug = "true" *) state_e prb_dc_missunit_state;
-(* mark_debug = "true" *) probe_state_e prb_dc_probe_state;
-(* mark_debug = "true" *) logic prb_probe_req;
-(* mark_debug = "true" *) logic[2:0] prb_probe_wait_cnt;
-assign prb_dc_missunit_state = state_q;
-assign prb_dc_probe_state = probe_state_q;
-assign prb_probe_req = probe_req;
-assign prb_probe_wait_cnt = probe_wait_cnt_q;
-
 //======================================================================================================================
 // Signals for simulation or probes
 //======================================================================================================================

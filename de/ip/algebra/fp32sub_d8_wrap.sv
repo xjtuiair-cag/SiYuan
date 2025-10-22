@@ -61,6 +61,15 @@ module fp32sub_d8_wrap(
 
 // for FPGA
 `ifdef PLATFORM_XILINX
+    fp32sub_d8 fp32sub_d8_inst(
+        .aclk                   (clk_i),
+        .s_axis_a_tvalid        (a_valid),
+        .s_axis_a_tdata         (a_data),
+        .s_axis_b_tvalid        (b_valid),
+        .s_axis_b_tdata         (b_data),
+        .m_axis_result_tvalid   (c_valid),
+        .m_axis_result_tdata    (c_data)
+    );
 `endif 
 // for ASIC
 `ifdef PLATFORM_ASIC

@@ -106,8 +106,8 @@ module sy_soc_fpga
     TL_BUS npu_bus_master   [0:0]();
     TL_BUS npu_bus_slave    [NPU_BUS_SLAVE_NUM-1:0]();
 
-    TL_BUS mem_bus_master  [1:0]();
-    TL_BUS mem_bus_slave   [0:0]();
+    TL_BUS mem_bus_master   [NPU_BUS_SLAVE_NUM-1:0]();
+    TL_BUS mem_bus_slave    [0:0]();
 
     logic [SOURCE_NUM-1:0]          irq_sources;
     logic [TARGET_NUM-1:0]          irq_target;
@@ -494,7 +494,8 @@ module sy_soc_fpga
 // Debug (npu bus)
 //======================================================================================================================
     sy_debug # (
-        .SOURCE ({1'b0,(MEM_BUS_SRC_LSB-1)'(CORE_NUM)}) // TODO
+        .HART_NUM        (CORE_NUM),
+        .SOURCE          ({2'b0,(MEM_BUS_SRC_LSB-1)'(CORE_NUM)}) // TODO
     ) debug_inst(
         .clk_i          (clk_i),       
         .rst_i          (~ddr_sync_reset),      
@@ -520,15 +521,34 @@ module sy_soc_fpga
         .BASE_ADDR  (DMABase),
         .ADDR_WIDTH (64),
         .DATA_WIDTH (64),
-        .SOURCE     ({1'b1,(MEM_BUS_SRC_LSB-1)'(CORE_NUM)}) // 
+        .SOURCE     ({2'b1,(MEM_BUS_SRC_LSB-1)'(CORE_NUM)}) // 
     ) dma_inst(
         .clk_i          (clk_i),       
         .rst_i          (cpu_rst_n),      
         .master         (npu_bus_slave[DMA]), 
         .slave          (mem_bus_master[1]) 
     );
+//======================================================================================================================
+// FFT (npu bus)
+//======================================================================================================================
+    sy_fft #(
+        .SOURCE         ({2'b10,(MEM_BUS_SRC_LSB-1)'(CORE_NUM)}),
+        .BASE_ADDR      (FFTBase),
+        .ADDR_WIDTH     (32),
+        .DATA_WIDTH     (32)
+    ) fft_inst(
+        .clk_i            (clk_i),           
+        .rst_i            (cpu_rst_n),           
+        // TL bus, used to read/write regs
+        .master           (npu_bus_slave[FFT]),
+        // Access Mem
+        .slave            (mem_bus_master[FFT])
+    );
+//======================================================================================================================
+// Mem bus (used by FFT/DMA/Debug to access system bus)
+//======================================================================================================================
     tl_xbar #(
-        .MASTER_NUM       (2),
+        .MASTER_NUM       (NPU_BUS_SLAVE_NUM),
         .SLAVE_NUM        (1),
         .REGION_NUM       (1),
         .SOURCE_LSB       (MEM_BUS_SRC_LSB),
@@ -614,7 +634,12 @@ module sy_soc_fpga
 // synopsys translate_off
 // synopsys translate_on
 
-(* mark_debug = "true" *) logic prb_cpu_rst;
-assign prb_cpu_rst = cpu_rst_n;
+(* mark_debug = "true" *) logic         prb_sys_bus_D_valid;
+(* mark_debug = "true" *) logic         prb_sys_bus_D_ready;
+(* mark_debug = "true" *) logic[9:0]    prb_sys_bus_D_source;
+
+assign prb_sys_bus_D_valid  = sys_bus_master[CORE_NUM].d_valid;
+assign prb_sys_bus_D_ready  = sys_bus_master[CORE_NUM].d_ready;
+assign prb_sys_bus_D_source = sys_bus_master[CORE_NUM].d_bits.source;
 
 endmodule : sy_soc_fpga

@@ -384,6 +384,7 @@ module sy_dma
         // write logic 
         case (write_state_q)
             WRITE_IDLE: begin
+                write_ready = 1'b1;
                 if (reset_q) begin
                     write_state_d = WRITE_IDLE;
                     wr_reset_done = 1'b1;
@@ -545,34 +546,5 @@ module sy_dma
 //======================================================================================================================
 // synopsys translate_off
 // synopsys translate_on
-(* mark_debug = "true" *) logic       prb_dma_a_valid;
-(* mark_debug = "true" *) logic       prb_dma_a_ready;
-(* mark_debug = "true" *) logic[31:0] prb_dma_a_addr;
-
-(* mark_debug = "true" *) logic       prb_dma_d_valid;
-(* mark_debug = "true" *) logic       prb_dma_d_ready;
-(* mark_debug = "true" *) logic[63:0] prb_dma_d_data;
-
-(* mark_debug = "true" *) logic       prb_dma_c_valid;
-(* mark_debug = "true" *) logic       prb_dma_c_ready;
-(* mark_debug = "true" *) logic[63:0] prb_dma_c_data;
-
-assign prb_dma_a_valid  = slave.a_valid;
-assign prb_dma_a_ready  = slave.a_ready;
-assign prb_dma_a_addr   = slave.a_bits.address;
-
-assign prb_dma_d_valid  = slave.d_valid;
-assign prb_dma_d_ready  = slave.d_ready;
-assign prb_dma_d_data   = slave.d_bits.data;
-
-assign prb_dma_c_valid  = slave.c_valid;
-assign prb_dma_c_ready  = slave.c_ready;
-assign prb_dma_c_data   = slave.c_bits.data;
-
-(* mark_debug = "true" *) read_state_e  prb_dma_rd_state;
-(* mark_debug = "true" *) write_state_e prb_dma_wr_state;
-
-assign prb_dma_rd_state = read_state_q;
-assign prb_dma_wr_state = write_state_q;
 
 endmodule

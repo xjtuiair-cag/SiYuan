@@ -73,7 +73,7 @@ module sy_fft_lm
 // Instance
 //======================================================================================================================
     // Delay chains for Read command, used for selecting the bank of read data
-    always_ff @(`DFF_CR(clk_i, rst_i)) begin
+    always_ff @(posedge clk_i) begin
         // exe_wr_bank_dly     <= `TCQ {exe_lm_wr_addr_i[0][LM_DWTH+LM_AWTH+:LM_BWTH]};
         exe_rd_bank_dly     <= `TCQ {exe_lm_rd_addr_i[0][LM_DWTH+LM_AWTH+:LM_BWTH]};
         // load_wr_bank_dly    <= `TCQ {load_lm_wr_addr_i[LM_DWTH+LM_AWTH+:LM_BWTH]};

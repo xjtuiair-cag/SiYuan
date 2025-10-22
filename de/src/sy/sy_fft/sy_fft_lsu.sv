@@ -209,7 +209,7 @@ module sy_fft_lsu
         lm_wr_en = 1'b0;
         lsu_st_data = '0;
 
-        lsu_D_ready_o = 1'b0;
+        lsu_D_ready_o = 1'b1;
         lsu_C_valid_o = 1'b0;
         lsu_lm_rd_en_o = 1'b0;
 
@@ -232,7 +232,7 @@ module sy_fft_lsu
                     bank_idx_d      = iq_lsu__data_i.bank_idx;
                     load_wt_d       = iq_lsu__data_i.load_wt;
                     instr_idx_d     = iq_lsu__data_i.instr_idx;
-                    reverse_base_d = iq_lsu__data_i.reverse_base;
+                    reverse_base_d  = iq_lsu__data_i.reverse_base;
 
                     req_cnt_d = '0;
                     req_off_d = iq_lsu__data_i.mode ? '0 : reverse_off;

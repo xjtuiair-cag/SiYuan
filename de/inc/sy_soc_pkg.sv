@@ -4,7 +4,7 @@ parameter integer CORE_NUM = 1;
 
     parameter UART_EN = 1;
     parameter SPI_EN = 1;
-    parameter GPIO_EN = 0;
+    parameter GPIO_EN = 1;
     parameter DMA_EN = 1;
     parameter FFT_EN = 1;
     parameter NPU_EN = 0;
@@ -101,7 +101,7 @@ parameter integer CORE_NUM = 1;
     parameter ROM   = 0;
     parameter UART  = 1;
     parameter SPI   = 2;
-    parameter GPIO  = 0;
+    parameter GPIO  = 3;
     parameter ETHERNET = 0;   
     
     // NPU bus
@@ -110,7 +110,7 @@ parameter integer CORE_NUM = 1;
     parameter FFT   = 2;
     parameter NPU   = 0;
     
-    parameter SYS_BUS_REGION     = 3;
+    parameter SYS_BUS_REGION     = 4;
     parameter SYS_BUS_SLAVE_NUM  = 4;
     parameter SYS_BUS_SRC_LSB    = 1;
     parameter SYS_BUS_SRC_MSB    = SYS_BUS_SRC_LSB + $clog2(CORE_NUM+1);
@@ -121,7 +121,7 @@ parameter integer CORE_NUM = 1;
     parameter CTRL_BUS_SRC_MSB   = CTRL_BUS_SRC_LSB + 1;
     
     parameter PHRI_BUS_REGION    = 1;     
-    parameter PHRI_BUS_SLAVE_NUM = 3;
+    parameter PHRI_BUS_SLAVE_NUM = 4;
     parameter PHRI_BUS_SRC_LSB   = SYS_BUS_SRC_MSB;
     parameter PHRI_BUS_SRC_MSB   = PHRI_BUS_SRC_LSB + 1;
     
@@ -136,26 +136,26 @@ parameter integer CORE_NUM = 1;
     parameter MEM_BUS_SRC_MSB   = MEM_BUS_SRC_LSB + $clog2(NPU_BUS_SLAVE_NUM);
     
     parameter logic [SYS_BUS_SLAVE_NUM-1:0][SYS_BUS_REGION-1:0][ADDR_WIDTH-1:0]sys_bus_start_addr = {
-    {DEBUG_START,DMA_START,FFT_START},
-{ROM_START,UART_START,SPI_START},
-{REGMAP_START,PLIC_START,CLINT_START},
-{RESERVED_START,RESERVED_START,DRAM_START}
+    {RESERVED_START,DEBUG_START,DMA_START,FFT_START},
+{ROM_START,UART_START,SPI_START,GPIO_START},
+{RESERVED_START,REGMAP_START,PLIC_START,CLINT_START},
+{RESERVED_START,RESERVED_START,RESERVED_START,DRAM_START}
 
     };
     
     parameter logic [SYS_BUS_SLAVE_NUM-1:0][SYS_BUS_REGION-1:0][ADDR_WIDTH-1:0]sys_bus_end_addr = {
-    {DEBUG_END,DMA_END,FFT_END},
-{ROM_END,UART_END,SPI_END},
-{REGMAP_END,PLIC_END,CLINT_END},
-{RESERVED_END,RESERVED_END,DRAM_END}
+    {RESERVED_END,DEBUG_END,DMA_END,FFT_END},
+{ROM_END,UART_END,SPI_END,GPIO_END},
+{RESERVED_END,REGMAP_END,PLIC_END,CLINT_END},
+{RESERVED_END,RESERVED_END,RESERVED_END,DRAM_END}
 
     };
     
     parameter logic [SYS_BUS_SLAVE_NUM-1:0][SYS_BUS_REGION-1:0]sys_bus_region_en = {
-    {1'b1,1'b1,1'b1},
-{1'b1,1'b1,1'b1},
-{1'b1,1'b1,1'b1},
-{1'b0,1'b0,1'b1}
+    {1'b0,1'b1,1'b1,1'b1},
+{1'b1,1'b1,1'b1,1'b1},
+{1'b0,1'b1,1'b1,1'b1},
+{1'b0,1'b0,1'b0,1'b1}
 
     };
     
@@ -170,15 +170,15 @@ parameter integer CORE_NUM = 1;
      };
     
     parameter logic [PHRI_BUS_SLAVE_NUM-1:0][PHRI_BUS_REGION-1:0][ADDR_WIDTH-1:0]phri_bus_start_addr = {
-    {SPI_START,UART_START,ROM_START}
+    {GPIO_START,SPI_START,UART_START,ROM_START}
 
     };
     parameter logic [PHRI_BUS_SLAVE_NUM-1:0][PHRI_BUS_REGION-1:0][ADDR_WIDTH-1:0]phri_bus_end_addr = {
-    {SPI_END,UART_END,ROM_END}
+    {GPIO_END,SPI_END,UART_END,ROM_END}
 
     };
     parameter logic [PHRI_BUS_SLAVE_NUM-1:0][PHRI_BUS_REGION-1:0]phri_bus_region_en = {
-    {1'b1,1'b1,1'b1}
+    {1'b1,1'b1,1'b1,1'b1}
 
     };
     

@@ -62,7 +62,7 @@ module sy_fft_wt
 // Instance
 //======================================================================================================================
     // Delay chains for Read command, used for selecting the bank of read data
-    always_ff @(`DFF_CR(clk_i, rst_i)) begin
+    always_ff @(posedge clk_i) begin
         exe_rd_bank_dly <= `TCQ {exe_wt_rd_addr_i[LM_DWTH+LM_AWTH+:WT_BWTH]};
     end
 
@@ -88,28 +88,6 @@ module sy_fft_wt
         );
     end
     assign exe_wt_rd_data_o = mem_rdata[exe_rd_bank_dly];
-    // Control logic for each bank
-    // assign lsu_bank_wvld   = lsu_wt_wr_en_i;
-    // assign exe_bank_rvld   = exe_wt_rd_en_i;
-
-    // assign mem_vld      = exe_bank_rvld || lsu_bank_wvld;
-    // assign mem_we       = lsu_bank_wvld;
-    // assign mem_addr     = exe_bank_rvld ? exe_wt_rd_addr_i[LM_DWTH+:LM_AWTH] : lsu_wt_addr_i[LM_DWTH+:LM_AWTH];
-    // assign mem_wdata    = lsu_wt_wr_data_i;
-
-    // // Instance of On-Chip Memory
-    // sp_512x64sd1_wrap wt_item (
-    //     .clk_i                          (clk_i),
-    //     .vld_i                          (mem_vld),
-    //     .we_i                           (mem_we),
-    //     .addr_i                         (mem_addr),
-    //     .wdata_i                        (mem_wdata),
-    //     .wstrb_i                        (8'hFF),
-    //     .rdata_o                        (mem_rdata)
-    // );
-
-    // assign exe_wt_rd_data_o = mem_rdata;
-
 //======================================================================================================================
 // Signals for simulation or probes
 //======================================================================================================================

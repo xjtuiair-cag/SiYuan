@@ -740,45 +740,4 @@ module spi_master_axi_if #(
 
   assign spi_data_tx_valid = write_req & (write_address[3] == 1'b1) & (s_axi_wstrb != '0);
 
-
-(* mark_debug = "true" *) logic       prb_spi_awvalid;
-(* mark_debug = "true" *) logic       prb_spi_awready;
-(* mark_debug = "true" *) logic[31:0] prb_spi_awaddr;
-
-(* mark_debug = "true" *) logic       prb_spi_wvalid;
-(* mark_debug = "true" *) logic       prb_spi_wready;
-(* mark_debug = "true" *) logic[31:0] prb_spi_wdata;
-
-(* mark_debug = "true" *) logic       prb_spi_arvalid;
-(* mark_debug = "true" *) logic       prb_spi_arready;
-(* mark_debug = "true" *) logic[31:0] prb_spi_araddr;
-
-(* mark_debug = "true" *) logic       prb_spi_rvalid;
-(* mark_debug = "true" *) logic       prb_spi_rready;
-(* mark_debug = "true" *) logic[31:0] prb_spi_rdata;
-
-assign prb_spi_awvalid = s_axi_awvalid;
-assign prb_spi_awready = s_axi_awready;
-assign prb_spi_awaddr  = s_axi_awaddr;
-
-assign prb_spi_wvalid = s_axi_wvalid;
-assign prb_spi_wready = s_axi_wready;
-assign prb_spi_wdata  = s_axi_wdata;
-
-assign prb_spi_arvalid  = s_axi_arvalid;
-assign prb_spi_arready  = s_axi_arready;
-assign prb_spi_araddr   = s_axi_araddr;
-
-assign prb_spi_rvalid = s_axi_rvalid;
-assign prb_spi_rready = s_axi_rready;
-assign prb_spi_rdata  = s_axi_rdata;
-
-(* mark_debug = "true" *) logic       prb_spi_rd;
-(* mark_debug = "true" *) logic       prb_spi_wr;
-(* mark_debug = "true" *) logic[15:0] prb_spi_data_len;
-
-assign prb_spi_rd = spi_rd;
-assign prb_spi_wr = spi_wr;
-assign prb_spi_data_len = spi_data_len;
-
 endmodule

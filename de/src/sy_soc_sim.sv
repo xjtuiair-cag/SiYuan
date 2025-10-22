@@ -71,7 +71,7 @@ module sy_soc_sim
     logic                   flush_L2_cache_en;
     logic                   flush_L2_cache_done;
     logic                   ndmreset;
-    logic                   debug_req_irq;
+    logic [CORE_NUM-1:0]    debug_req_irq;
 
     TL_BUS sys_bus_master   [CORE_NUM:0](); // Core + DMA
     TL_BUS sys_bus_slave    [SYS_BUS_SLAVE_NUM-1:0]();
@@ -120,39 +120,26 @@ module sy_soc_sim
 //======================================================================================================================
 // Hart 
 //======================================================================================================================
-    // generate 
-    //     genvar i;
-    //     for (i=0;i<CORE_NUM;i++) begin : gen_hart
-    //         localparam int unsigned LSB = 2*i;
-    //         localparam int unsigned MSB = 2*(i+1)-1;
-    //         sy_core # (
-    //             .HART_ID_WTH    (HART_ID_WTH),
-    //             .HART_ID        (i)
-    //         ) u_sy_inst(
-    //             .clk_i                      (clk_i      ),                          
-    //             .rst_i                      (cpu_rst_n ),                          
-    //             .boot_addr_i                (boot_addr_i),          
-    //             .irq_i                      (irq_target[MSB:LSB]),    
-    //             .ipi_i                      (ipi[i]),    
-    //             .debug_req_i                (1'b0),          
-    //             .time_irq_i                 (timer_irq[i]),         
-    //             .master                     (sys_bus_master[i])
-    //         );       
-    //     end
-    // endgenerate
-    sy_core # (
-        .HART_ID_WTH    (HART_ID_WTH),
-        .HART_ID        (0)
-    ) u_sy_inst(
-        .clk_i                      (clk_i      ),                          
-        .rst_i                      (cpu_rst_n  ),                          
-        .boot_addr_i                (boot_addr_i),          
-        .irq_i                      (irq_target[1:0]),    
-        .ipi_i                      (ipi[0]),    
-        .debug_req_i                (debug_req_irq),          
-        .time_irq_i                 (timer_irq[0]),         
-        .master                     (sys_bus_master[0])
-    ); 
+    generate 
+        genvar i;
+        for (i=0;i<CORE_NUM;i++) begin : gen_hart
+            localparam int unsigned LSB = 2*i;
+            localparam int unsigned MSB = 2*(i+1)-1;
+            sy_core # (
+                .HART_ID_WTH    (HART_ID_WTH),
+                .HART_ID        (i)
+            ) u_sy_inst(
+                .clk_i                      (clk_i      ),                          
+                .rst_i                      (cpu_rst_n ),                          
+                .boot_addr_i                (boot_addr_i),          
+                .irq_i                      (irq_target[MSB:LSB]),    
+                .ipi_i                      (ipi[i]),    
+                .debug_req_i                (debug_req_irq[i]),          
+                .time_irq_i                 (timer_irq[i]),         
+                .master                     (sys_bus_master[i])
+            );       
+        end
+    endgenerate
 //======================================================================================================================
 // System Bus
 //======================================================================================================================
@@ -265,7 +252,7 @@ module sy_soc_sim
 //======================================================================================================================
     sy_main_mem #(
         .HART_NUM       (CORE_NUM),
-        .HART_ID_WTH    (HART_ID_WTH + 1),
+        .HART_ID_WTH    (HART_ID_WTH),
         .HART_ID_LSB    (1)
     ) main_mem(
         .clk_i            (clk_i),
@@ -449,7 +436,8 @@ module sy_soc_sim
 // Debug (npu bus)
 //======================================================================================================================
     sy_debug # (
-        .SOURCE ({2'b0,(MEM_BUS_SRC_LSB-1)'(CORE_NUM)}) // TODO
+        .HART_NUM       (CORE_NUM),
+        .SOURCE         ({2'b0,(MEM_BUS_SRC_LSB-1)'(CORE_NUM)}) // TODO
     ) debug_inst(
         .clk_i          (clk_i),       
         .rst_i          (rst_i),      
@@ -482,6 +470,25 @@ module sy_soc_sim
         .master         (npu_bus_slave[DMA]), 
         .slave          (mem_bus_master[DMA]) 
     );
+//======================================================================================================================
+// FFT (npu bus)
+//======================================================================================================================
+    sy_fft #(
+        .SOURCE         ({2'b10,(MEM_BUS_SRC_LSB-1)'(CORE_NUM)}),
+        .BASE_ADDR      (FFTBase),
+        .ADDR_WIDTH     (32),
+        .DATA_WIDTH     (32)
+    ) fft_inst(
+        .clk_i            (clk_i),           
+        .rst_i            (cpu_rst_n),           
+        // TL bus, used to read/write regs
+        .master           (npu_bus_slave[FFT]),
+        // Access Mem
+        .slave            (mem_bus_master[FFT])
+    );
+//======================================================================================================================
+// Mem bus (used by FFT/DMA/Debug to access system bus)
+//======================================================================================================================
     tl_xbar #(
         .MASTER_NUM       (NPU_BUS_SLAVE_NUM),
         .SLAVE_NUM        (1),
@@ -501,22 +508,6 @@ module sy_soc_sim
         .region_en_i      ( mem_bus_region_en)
     );
     tl_master2slave mem_bus_trans(.master(mem_bus_slave[0]), .slave(sys_bus_master[CORE_NUM]));
-//======================================================================================================================
-// FFT (npu bus)
-//======================================================================================================================
-    sy_fft #(
-        .SOURCE         ({2'b10,(MEM_BUS_SRC_LSB-1)'(CORE_NUM)}),
-        .BASE_ADDR      (FFTBase),
-        .ADDR_WIDTH     (32),
-        .DATA_WIDTH     (32)
-    ) fft_inst(
-        .clk_i            (clk_i),           
-        .rst_i            (cpu_rst_n),           
-        // TL bus, used to read/write regs
-        .master           (npu_bus_slave[FFT]),
-        // Access Mem
-        .slave            (mem_bus_master[FFT])
-    );
 //======================================================================================================================
 // NPU (npu bus)
 //======================================================================================================================
@@ -551,7 +542,6 @@ module sy_soc_sim
         assign ddr_axi_r_ready[1] = '0;
         assign ddr_axi_b_ready[1] = '0;
     end
-
 //======================================================================================================================
 // Ethernet (TODO)
 //======================================================================================================================

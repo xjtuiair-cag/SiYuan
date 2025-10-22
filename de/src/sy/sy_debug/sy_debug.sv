@@ -29,6 +29,7 @@
 module sy_debug
     import sy_pkg::*;
 # (
+    parameter HART_NUM = 1,
     parameter SOURCE = 0
 )(
     input  logic                        clk_i,  // system clock     
@@ -43,7 +44,7 @@ module sy_debug
     output logic                        tdo,        
     // reset
     output logic                        ndmreset,
-    output logic                        debug_req_irq,
+    output logic[HART_NUM-1:0]          debug_req_irq,
     // used to read/write register
     TL_BUS.Master                       master, 
     // used to access system bus
@@ -126,9 +127,9 @@ module sy_debug
 
     // debug module
     dm_top #(
-        .NrHarts          ( 1                 ),
+        .NrHarts          ( HART_NUM          ),
         .BusWidth         ( 64                ),
-        .SelectableHarts  ( 1'b1              )
+        .SelectableHarts  ( {HART_NUM{1'b1}}  )
     ) i_dm_top (
         .clk_i            ( clk_i             ),
         .rst_ni           ( rst_i             ), // PoR
@@ -137,7 +138,7 @@ module sy_debug
         .dmactive_o       ( dmactive          ), // active debug session
         .debug_req_o      ( debug_req_irq     ),
         .unavailable_i    ( '0                ),
-        .hartinfo_i       ( {sy_pkg::DebugHartInfo} ),
+        .hartinfo_i       ( {HART_NUM{sy_pkg::DebugHartInfo}} ),
         .slave_req_i      ( dm_slave_en       ),
         .slave_we_i       ( dm_slave_we       ),
         .slave_addr_i     ( dm_slave_addr     ),

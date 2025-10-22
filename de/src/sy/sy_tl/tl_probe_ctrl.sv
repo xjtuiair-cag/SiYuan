@@ -530,17 +530,4 @@ module tl_probe_ctrl #(
         end
     end
 
-// (* mark_debug = "true" *) state_e       prb_cc_ctrl_state;
-// (* mark_debug = "true" *) logic[7:0]    prb_cc_ctrl_cnt;
-// (* mark_debug = "true" *) logic         prb_proeb_ack_done;
-// (* mark_debug = "true" *) logic         prb_proeb_data_done;
-// (* mark_debug = "true" *) logic[5:0]    prb_cc_ctrl_D_source;
-// (* mark_debug = "true" *) logic[5:0]    prb_cc_ctrl_A_source;
-// assign prb_cc_ctrl_state = state_q;
-// assign prb_cc_ctrl_cnt = cnt3_q;
-// assign prb_proeb_ack_done = probeAck_done;
-// assign prb_proeb_data_done = probeAckData_done;
-// assign prb_cc_ctrl_A_source = oup_A_bits_o.source;
-// assign prb_cc_ctrl_D_source = oup_D_bits_i.source;
-
 endmodule
