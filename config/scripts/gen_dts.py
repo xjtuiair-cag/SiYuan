@@ -175,6 +175,16 @@ if __name__ == "__main__":
             status = "okay";
         };\n
         '''
+
+    if cfg["FFT"] :
+        output += '''
+        sy_fft: cag-SiYuan-fft@0{
+            compatible = "cag-SiYuan-fft";
+            reg = <0x0 0x40000 0x0 0x1000>;    // NPU DMA 
+            status = "okay";
+        };\n
+        '''
+ 
     if cfg["NPU"] :
         output += '''
         npu: cag-hipu100@2000{
