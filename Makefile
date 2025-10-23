@@ -34,8 +34,10 @@ endif
 # Package files -> compile first
 sy_pkg := 	de/inc/axi_pkg.sv            \
 		   	de/inc/dbg_pkg.sv            \
+		   	de/inc/dm_pkg.sv             \
 		   	de/inc/sy_pkg.sv             \
 		   	de/inc/tl_pkg.sv             \
+		   	de/inc/fft_pkg.sv            \
 		   	de/inc/sy_axi.sv             \
 		   	de/inc/sy_soc_pkg.sv         \
 		   	de/inc/reg_intf.sv           \
@@ -58,6 +60,9 @@ util := de/utils/rr_arb_tree.sv                \
 		de/utils/fan_ctrl.sv                   \
 		de/utils/rstgen_bypass.sv              \
 		de/utils/rstgen.sv                     \
+		de/utils/cdc_2phase.sv                 \
+		de/utils/pulp_clock_mux2.sv            \
+		de/utils/fifo_v2.sv                    \
 		de/utils/fifo_v3.sv                              					
 util := $(addprefix $(root-dir), $(util))
 
@@ -67,13 +72,12 @@ ip := 	$(filter-out de/ip/fpu/src/fpnew_pkg.sv, $(wildcard de/ip/fpu/src/*.sv)) 
 		$(wildcard de/ip/sram/*.sv)                                            					\
 		$(wildcard de/ip/ethernet/*.sv)                                            				\
 		$(wildcard de/ip/axi_spi_master/*.sv)                                            		\
+		$(wildcard de/ip/algebra/*.sv)                                            				\
+		$(filter-out de/ip/apb_uart/src/reg_uart_wrap.sv,$(wildcard de/ip/apb_uart/src/*.sv))	\
 		de/ip/rv_plic/rtl/plic_regmap.sv                                            			\
 		de/ip/rv_plic/rtl/rv_plic_gateway.sv                                            		\
 		de/ip/rv_plic/rtl/rv_plic_target.sv                                            			\
-		de/ip/rv_plic/rtl/plic_top.sv                                            			 	\
-		$(filter-out de/ip/apb_uart/src/reg_uart_wrap.sv,$(wildcard de/ip/apb_uart/src/*.sv))	\
-		de/ip/algebra/div64x64_d20_wrap.sv														\
-		de/ip/algebra/mul64x64_d3_wrap.sv													
+		de/ip/rv_plic/rtl/plic_top.sv
                                 	
 ip := $(addprefix $(root-dir), $(ip))
 
@@ -93,6 +97,11 @@ src :=  $(wildcard de/src/sy/sy_ppl/sy_ppl_fet/sy_ppl_br_pred/*.sv)             
 		$(wildcard de/src/sy/sy_plic/*.sv)              								\
 		$(wildcard de/src/sy/sy_mmu/*.sv)              									\
 		$(wildcard de/src/sy/sy_dma/*.sv)              									\
+		$(wildcard de/src/sy/sy_fft/*.sv)              									\
+		$(wildcard de/src/sy/sy_debug/riscv_dbg/debug_rom/*.sv)              			\
+		$(wildcard de/src/sy/sy_debug/riscv_dbg/src/*.sv)              					\
+		$(wildcard de/src/sy/sy_debug/*.sv)              								\
+		$(wildcard de/src/sy/sy_regmap/*.sv)              								\
 		$(wildcard de/src/sy/sy_spi/*.sv)              									\
 		$(wildcard de/src/sy/sy_gpio/*.sv)              								\
 		$(wildcard de/src/sy/sy_uart/*.sv)              								\
@@ -128,6 +137,13 @@ else ifeq ($(SIM_TYPE),dma)
 else ifeq ($(SIM_TYPE),spi)
 	sim_src += dv/tb/axi_mem_spi.sv \
 				dv/tb/tb_sy_spi.sv 
+else ifeq ($(SIM_TYPE),fft)
+	sim_src += dv/tb/axi_mem_fft.sv \
+				dv/tb/tb_sy_fft.sv 
+else ifeq ($(SIM_TYPE),debug)
+	sim_src += dv/tb/axi_mem_benos.sv \
+				dv/tb/SimJTAG.sv \
+			    dv/tb/tb_sy_debug.sv 
 else ifeq ($(SIM_TYPE),riscv_test)# TODO
 	sim_src += dv/tb/axi_mem_riscv_test.sv \
 				dv/tb/tb_sy_riscv_test.sv 

@@ -113,10 +113,9 @@ module sy_soc_fpga
     logic [TARGET_NUM-1:0]          irq_target;
     logic                           pll_locked;
     logic                           ndmreset;
+    logic                           ndmreset_n;
     logic                           ddr_clock_out;
     logic                           ddr_sync_reset;
-    logic                           flush_L2_cache_en;
-    logic                           flush_L2_cache_done;
     logic                           clk;
     logic                           rst_n;
     logic                           rst;
