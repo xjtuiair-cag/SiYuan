@@ -30,6 +30,9 @@ read_ip ../xilinx_ip/xlnx_axi_quad_spi/ip/xlnx_axi_quad_spi.xci
 read_ip ../xilinx_ip/xlnx_clk_gen/ip/xlnx_clk_gen.xci
 read_ip ../xilinx_ip/div64x64_d20_s/ip/div64x64_d20_s.xci
 read_ip ../xilinx_ip/div64x64_d20_us/ip/div64x64_d20_us.xci
+read_ip ../xilinx_ip/fp32mul_d8/ip/fp32mul_d8.xci
+read_ip ../xilinx_ip/fp32add_d8/ip/fp32add_d8.xci
+read_ip ../xilinx_ip/fp32sub_d8/ip/fp32sub_d8.xci
 read_ip ../xilinx_ip/sdp_512x64sd1/ip/sdp_512x64sd1.xci
 read_ip ../xilinx_ip/sdp_2048x64sd1/ip/sdp_2048x64sd1.xci
 read_ip ../xilinx_ip/sp_512x64sd1/ip/sp_512x64sd1.xci

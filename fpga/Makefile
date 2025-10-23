@@ -18,6 +18,9 @@ ips := xlnx_axi_clock_converter.xci  	\
 	   div64x64_d20_us.xci				\
 	   sdp_2048x64sd1.xci				\
 	   sdp_512x64sd1.xci				\
+	   fp32add_d8.xci					\
+	   fp32mul_d8.xci					\
+	   fp32sub_d8.xci					\
 	   sp_512x64sd1.xci						
 
 

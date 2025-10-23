@@ -5,6 +5,12 @@ set_property -dict {PACKAGE_PIN R19 IOSTANDARD LVCMOS33} [get_ports cpu_resetn]
 set_property -dict {PACKAGE_PIN Y23 IOSTANDARD LVCMOS33} [get_ports tx]
 set_property -dict {PACKAGE_PIN Y20 IOSTANDARD LVCMOS33} [get_ports rx]
 
+## To use FTDI FT2232 JTAG
+set_property -dict {PACKAGE_PIN Y29 IOSTANDARD LVCMOS33} [get_ports trst_n]
+set_property -dict {PACKAGE_PIN AD27 IOSTANDARD LVCMOS33} [get_ports tck]
+set_property -dict {PACKAGE_PIN W27 IOSTANDARD LVCMOS33} [get_ports tdi]
+set_property -dict {PACKAGE_PIN W28 IOSTANDARD LVCMOS33} [get_ports tdo]
+set_property -dict {PACKAGE_PIN W29 IOSTANDARD LVCMOS33} [get_ports tms]
 
 ## LEDs
 set_property -dict {PACKAGE_PIN T28 IOSTANDARD LVCMOS33} [get_ports {led[0]}]
