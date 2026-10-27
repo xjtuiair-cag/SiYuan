@@ -1,0 +1,4 @@
+-f ${DE_HOME}/vc/_ip.vc
+-f ${DE_HOME}/vc/_inc.vc
+-f ${DE_HOME}/vc/_utils.vc
+-f ${DE_HOME}/vc/_sy.vc

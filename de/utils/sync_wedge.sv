@@ -15,13 +15,11 @@ module sync_wedge #(
 ) (
     input  logic clk_i,
     input  logic rst_ni,
-    input  logic en_i,
     input  logic serial_i,
     output logic r_edge_o,
     output logic f_edge_o,
     output logic serial_o
 );
-    logic clk;
     logic serial, serial_q;
 
     assign serial_o =  serial_q;
@@ -37,20 +35,11 @@ module sync_wedge #(
         .serial_o ( serial )
     );
 
-    pulp_clock_gating i_pulp_clock_gating (
-        .clk_i,
-        .en_i,
-        .test_en_i ( 1'b0 ),
-        .clk_o     ( clk  )
-    );
-
-    always_ff @(posedge clk, negedge rst_ni) begin
+    always_ff @(posedge clk_i, negedge rst_ni) begin
         if (!rst_ni) begin
             serial_q <= 1'b0;
         end else begin
-            if (en_i) begin
-                serial_q <= serial;
-            end
+            serial_q <= serial;
         end
     end
 endmodule

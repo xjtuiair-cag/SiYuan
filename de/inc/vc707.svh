@@ -1,2 +1,0 @@
-`define VC707
-`define PLATFORM_XILINX

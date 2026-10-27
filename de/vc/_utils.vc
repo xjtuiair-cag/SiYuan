@@ -1,0 +1,15 @@
+${DE_HOME}/utils/cdc_sync.sv
+${DE_HOME}/utils/cdc_pluse2pluse.sv
+${DE_HOME}/utils/sync_fifo.sv
+${DE_HOME}/utils/fifo_v3.sv
+${DE_HOME}/utils/rr_arb_tree.sv
+${DE_HOME}/utils/stream_arbiter_flushable.sv
+${DE_HOME}/utils/stream_arbiter.sv
+${DE_HOME}/utils/lzc.sv
+${DE_HOME}/utils/sync_rstgen.sv
+${DE_HOME}/utils/sync.sv
+${DE_HOME}/utils/sync_wedge.sv
+${DE_HOME}/utils/pulp_clock_mux2.sv
+${DE_HOME}/utils/cdc_2phase.sv
+${DE_HOME}/utils/fifo_v2.sv
+${DE_HOME}/utils/spill_register.sv

@@ -94,16 +94,29 @@ module cdc_2phase_src #(
     end
   end
 
+  cdc_sync # (
+      .DTYPE    (logic),
+      .DLY      (2),
+      .RST_VAL  (0)
+  ) ack_sync (
+      // clock & reset
+      .clk_i    (clk_i),
+      .rst_i    (rst_ni),
+      // data need to be synchronized
+      .data_i   (async_ack_i),
+      .data_o   (ack_q)
+  );
+
   // The ack_src and ack registers act as synchronization stages.
-  always_ff @(posedge clk_i or negedge rst_ni) begin
-    if (!rst_ni) begin
-      ack_src_q <= 0;
-      ack_q     <= 0;
-    end else begin
-      ack_src_q <= async_ack_i;
-      ack_q     <= ack_src_q;
-    end
-  end
+  // always_ff @(posedge clk_i or negedge rst_ni) begin
+  //   if (!rst_ni) begin
+  //     ack_src_q <= 0;
+  //     ack_q     <= 0;
+  //   end else begin
+  //     ack_src_q <= async_ack_i;
+  //     ack_q     <= ack_src_q;
+  //   end
+  // end
 
   // Output assignments.
   assign ready_o = (req_src_q == ack_q);
@@ -156,15 +169,28 @@ module cdc_2phase_dst #(
   // The req_dst and req registers act as synchronization stages.
   always_ff @(posedge clk_i or negedge rst_ni) begin
     if (!rst_ni) begin
-      req_dst_q <= 0;
-      req_q0    <= 0;
+      // req_dst_q <= 0;
+      // req_q0    <= 0;
       req_q1    <= 0;
     end else begin
-      req_dst_q <= async_req_i;
-      req_q0    <= req_dst_q;
+      // req_dst_q <= async_req_i;
+      // req_q0    <= req_dst_q;
       req_q1    <= req_q0;
     end
   end
+
+  cdc_sync # (
+      .DTYPE    (logic),
+      .DLY      (2),
+      .RST_VAL  (0)
+  ) req_sync (
+      // clock & reset
+      .clk_i    (clk_i),
+      .rst_i    (rst_ni),
+      // data need to be synchronized
+      .data_i   (async_req_i),
+      .data_o   (req_q0)
+  );
 
   // Output assignments.
   assign valid_o = (ack_dst_q != req_q1);

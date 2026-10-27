@@ -58,10 +58,10 @@ package fft_pkg;
         logic                   mode;
         logic                   load_wt;
         logic                   is_lds;
-        logic [3:0]             tot_level;  
-        logic [3:0]             cur_level;  
-        logic [47:0]            addr;    
-        logic [15:0]            reverse_base;
+        logic [4:0]             tot_level;  
+        logic [4:0]             cur_level;  
+        logic [31:0]            addr;    
+        logic [31:0]            reverse_base;
         logic [LM_AWTH-1:0]     rd_ocm_addr;    
         logic [LM_AWTH-1:0]     wr_ocm_addr; 
         logic [31:0]            stride; 
@@ -78,7 +78,7 @@ package fft_pkg;
     typedef struct packed {
         logic                       is_load;       
         logic                       load_wt;
-        logic [3:0]                 tot_level;
+        logic [4:0]                 tot_level;
         logic [10:0]                len;
         logic                       buf_idx;    
         logic                       wt_buf_idx;
@@ -89,13 +89,13 @@ package fft_pkg;
         logic [31:0]                stride;
         logic                       mode; // 0 for reverse, 1 for increment
         logic [7:0]                 instr_idx;  
-        logic [15:0]                reverse_base;
+        logic [31:0]                reverse_base;
     } lsu_data_t;
 
     typedef struct packed {
         logic                       mode;// 0 for reverse, 1 for normal 
-        logic [3:0]                 cur_level;
-        logic [3:0]                 tot_level;
+        logic [4:0]                 cur_level;
+        logic [4:0]                 tot_level;
         logic                       buf_idx;    
         logic                       wt_buf_idx;
         logic                       bank_idx; 

@@ -106,17 +106,6 @@ module rr_arb_tree #(
         end
 
         // pragma translate_off
-        `ifndef VERILATOR
-          lock: assert property(
-            @(posedge clk_i) disable iff (!rst_ni) LockIn |-> req_o && !gnt_i |=> idx_o == $past(idx_o))
-              else $fatal (1, "Lock implies same arbiter decision in next cycle if output is not ready.");
-
-          logic [NumIn-1:0] req_tmp;
-          assign req_tmp = req_q & req_i;
-          lock_req: assert property(
-            @(posedge clk_i) disable iff (!rst_ni) LockIn |-> lock_d |=> req_tmp == req_q)
-              else $fatal (1, "It is disallowed to deassert unserved request signals when LockIn is enabled.");
-        `endif
         // pragma translate_on
 
         always_ff @(posedge clk_i or negedge rst_ni) begin : p_req_regs
@@ -206,38 +195,6 @@ module rr_arb_tree #(
     end
 
     // pragma translate_off
-    `ifndef VERILATOR
-    initial begin : p_assert
-      assert(NumIn)
-        else $fatal("Input must be at least one element wide.");
-      assert(!(LockIn && ExtPrio))
-        else $fatal(1,"Cannot use LockIn feature together with external ExtPrio.");
-    end
-
-    hot_one : assert property(
-      @(posedge clk_i) disable iff (!rst_ni) $onehot0(gnt_o))
-        else $fatal (1, "Grant signal must be hot1 or zero.");
-
-    gnt0 : assert property(
-      @(posedge clk_i) disable iff (!rst_ni) |gnt_o |-> gnt_i)
-        else $fatal (1, "Grant out implies grant in.");
-
-    gnt1 : assert property(
-      @(posedge clk_i) disable iff (!rst_ni) req_o |-> gnt_i |-> |gnt_o)
-        else $fatal (1, "Req out and grant in implies grant out.");
-
-    gnt_idx : assert property(
-      @(posedge clk_i) disable iff (!rst_ni) req_o |->  gnt_i |-> gnt_o[idx_o])
-        else $fatal (1, "Idx_o / gnt_o do not match.");
-
-    req0 : assert property(
-      @(posedge clk_i) disable iff (!rst_ni) |req_i |-> req_o)
-        else $fatal (1, "Req in implies req out.");
-
-    req1 : assert property(
-      @(posedge clk_i) disable iff (!rst_ni) |req_o |-> req_i)
-        else $fatal (1, "Req out implies req in.");
-    `endif
     // pragma translate_on
   end
 

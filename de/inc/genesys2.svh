@@ -1,2 +1,0 @@
-`define GENESYS2
-`define PLATFORM_XILINX

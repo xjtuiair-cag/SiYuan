@@ -130,15 +130,312 @@ package sy_pkg;
     end
 `endif
 
+// Common register defines for RTL designs
+`ifndef COMMON_CELLS_REGISTERS_SVH_
+`define COMMON_CELLS_REGISTERS_SVH_
 //----------------------------------------------------------------------------------------------------------------------
-// SOC parameters
+// SD card define
 //----------------------------------------------------------------------------------------------------------------------
+`define BLKSIZE_W 12
+`define BLKCNT_W 16
+`define CMD_TIMEOUT_W 24
+`define DATA_TIMEOUT_W 24
+
+//cmd module interrupts
+`define INT_CMD_SIZE 5
+`define INT_CMD_CC 0
+`define INT_CMD_EI 1
+`define INT_CMD_CTE 2
+`define INT_CMD_CCRCE 3
+`define INT_CMD_CIE  4
+
+//data module interrupts
+`define INT_DATA_SIZE 5
+`define INT_DATA_CC 0
+`define INT_DATA_EI 1
+`define INT_DATA_CTE 2
+`define INT_DATA_CCRCE 3
+`define INT_DATA_CFE 4
+
+//command register defines
+`define CMD_REG_SIZE 14
+`define CMD_RESPONSE_CHECK 1:0
+`define CMD_BUSY_CHECK 2
+`define CMD_CRC_CHECK 3
+`define CMD_IDX_CHECK 4
+`define CMD_WITH_DATA 6:5
+`define CMD_INDEX 13:8
+
+//register addreses
+`define argument 8'h00
+`define command 8'h04
+`define resp0 8'h08
+`define resp1 8'h0c
+`define resp2 8'h10
+`define resp3 8'h14
+`define data_timeout 8'h18
+`define controller 8'h1c
+`define cmd_timeout 8'h20
+`define clock_d 8'h24
+`define reset 8'h28
+`define voltage 8'h2c
+`define capa 8'h30
+`define cmd_isr 8'h34
+`define cmd_iser 8'h38
+`define data_isr 8'h3c
+`define data_iser 8'h40
+`define blksize 8'h44
+`define blkcnt 8'h48
+`define dst_src_addr 8'h60
+
+//wb module defines
+`define RESET_BLOCK_SIZE 12'd511
+`define RESET_CLK_DIV 0
+`define SUPPLY_VOLTAGE_mV 3300
+
+// ------ Configurable Parameters ------ //
+`define PHY_ADDR_WIDTH          48
+`define CACHE_ENTRY_WIDTH       3   // Need to re-configure BRAM in the SD cache if set larger than 3
+`define CACHE_INDEX_WIDTH       1   // Must be smaller than CACHE_ENTRY_WIDTH
+
+// ------ DO NOT TOUCH ------ //
+`define PHY_ADDR_BITS           `PHY_ADDR_WIDTH-1:0
+
+`define SD_ADDR_WIDTH           32
+`define SD_BLOCK_OFFSET_WIDTH   9
+
+`define PHY_BLOCK_BITS          `PHY_ADDR_WIDTH-1:`SD_BLOCK_OFFSET_WIDTH
+
+
+`define CACHE_ENTRY_BITS        (`SD_BLOCK_OFFSET_WIDTH+`CACHE_ENTRY_WIDTH-1):`SD_BLOCK_OFFSET_WIDTH
+
+`define CACHE_ENTRIES           (2 ** `CACHE_ENTRY_WIDTH)
+
+`define CACHE_INDEXES           (2 ** `CACHE_INDEX_WIDTH)
+`define CACHE_ENTRY_INDEXED_WIDTH   (`CACHE_ENTRY_WIDTH-`CACHE_INDEX_WIDTH)
+`define CACHE_ENTRY_INDEXED_BITS    (`SD_BLOCK_OFFSET_WIDTH+`CACHE_ENTRY_WIDTH-1):(`SD_BLOCK_OFFSET_WIDTH+`CACHE_INDEX_WIDTH)
+`define CACHE_ENTRIES_INDEXED   (2 ** `CACHE_ENTRY_INDEXED_WIDTH)
+`define CACHE_INDEX_BITS        (`SD_BLOCK_OFFSET_WIDTH+`CACHE_INDEX_WIDTH-1):`SD_BLOCK_OFFSET_WIDTH
+`define CACHE_BLOCK_PLACEMENT_BITS  `PHY_ADDR_WIDTH-1:(`SD_BLOCK_OFFSET_WIDTH+`CACHE_INDEX_WIDTH)
+
+`define ADDR_LINE_BITS          (`CACHE_ENTRY_WIDTH+`SD_BLOCK_OFFSET_WIDTH-1):3
+
+`define NOC_DATA_BITS           63:0
+
+// Abridged Summary of available FF macros:
+// `FF:      asynchronous active-low reset (implicit clock and reset)
+// `FFAR:    asynchronous active-high reset
+// `FFARN:   asynchronous active-low reset
+// `FFSR:    synchronous active-high reset
+// `FFSRN:   synchronous active-low reset
+// `FFNR:    without reset
+// `FFL:     load-enable and asynchronous active-low reset (implicit clock and reset)
+// `FFLAR:   load-enable and asynchronous active-high reset
+// `FFLARN:  load-enable and asynchronous active-low reset
+// `FFLARNC: load-enable and asynchronous active-low reset and synchronous active-high clear
+// `FFLSR:   load-enable and synchronous active-high reset
+// `FFLSRN:  load-enable and synchronous active-low reset
+// `FFLNR:   load-enable without reset
+
+
+// Flip-Flop with asynchronous active-low reset (implicit clock and reset)
+// __q: Q output of FF
+// __d: D input of FF
+// __reset_value: value assigned upon reset
+// Implicit:
+// clk_i: clock input
+// rst_ni: reset input (asynchronous, active low)
+`define FF(__q, __d, __reset_value)                  \
+  always_ff @(posedge clk_i or negedge rst_ni) begin \
+    if (!rst_ni) begin                               \
+      __q <= (__reset_value);                        \
+    end else begin                                   \
+      __q <= (__d);                                  \
+    end                                              \
+  end
+
+// Flip-Flop with asynchronous active-high reset
+// __q: Q output of FF
+// __d: D input of FF
+// __reset_value: value assigned upon reset
+// __clk: clock input
+// __arst: asynchronous reset
+`define FFAR(__q, __d, __reset_value, __clk, __arst)     \
+  always_ff @(posedge (__clk) or posedge (__arst)) begin \
+    if (__arst) begin                                    \
+      __q <= (__reset_value);                            \
+    end else begin                                       \
+      __q <= (__d);                                      \
+    end                                                  \
+  end
+
+// Flip-Flop with asynchronous active-low reset
+// __q: Q output of FF
+// __d: D input of FF
+// __reset_value: value assigned upon reset
+// __clk: clock input
+// __arst_n: asynchronous reset
+`define FFARN(__q, __d, __reset_value, __clk, __arst_n)    \
+  always_ff @(posedge (__clk) or negedge (__arst_n)) begin \
+    if (!__arst_n) begin                                   \
+      __q <= (__reset_value);                              \
+    end else begin                                         \
+      __q <= (__d);                                        \
+    end                                                    \
+  end
+
+// Flip-Flop with synchronous active-high reset
+// __q: Q output of FF
+// __d: D input of FF
+// __reset_value: value assigned upon reset
+// __clk: clock input
+// __reset_clk: reset input
+`define FFSR(__q, __d, __reset_value, __clk, __reset_clk) \
+  `ifndef VERILATOR                       \
+  /``* synopsys sync_set_reset `"__reset_clk`" *``/       \
+    `endif                        \
+  always_ff @(posedge (__clk)) begin                      \
+    __q <= (__reset_clk) ? (__reset_value) : (__d);       \
+  end
+
+// Flip-Flop with synchronous active-low reset
+// __q: Q output of FF
+// __d: D input of FF
+// __reset_value: value assigned upon reset
+// __clk: clock input
+// __reset_n_clk: reset input
+`define FFSRN(__q, __d, __reset_value, __clk, __reset_n_clk) \
+    `ifndef VERILATOR                       \
+  /``* synopsys sync_set_reset `"__reset_n_clk`" *``/        \
+    `endif                        \
+  always_ff @(posedge (__clk)) begin                         \
+    __q <= (!__reset_n_clk) ? (__reset_value) : (__d);       \
+  end
+
+// Always-enable Flip-Flop without reset
+// __q: Q output of FF
+// __d: D input of FF
+// __clk: clock input
+`define FFNR(__q, __d, __clk)        \
+  always_ff @(posedge (__clk)) begin \
+    __q <= (__d);                    \
+  end
+
+// Flip-Flop with load-enable and asynchronous active-low reset (implicit clock and reset)
+// __q: Q output of FF
+// __d: D input of FF
+// __load: load d value into FF
+// __reset_value: value assigned upon reset
+// Implicit:
+// clk_i: clock input
+// rst_ni: reset input (asynchronous, active low)
+`define FFL(__q, __d, __load, __reset_value)         \
+  always_ff @(posedge clk_i or negedge rst_ni) begin \
+    if (!rst_ni) begin                               \
+      __q <= (__reset_value);                        \
+    end else begin                                   \
+      __q <= (__load) ? (__d) : (__q);               \
+    end                                              \
+  end
+
+// Flip-Flop with load-enable and asynchronous active-high reset
+// __q: Q output of FF
+// __d: D input of FF
+// __load: load d value into FF
+// __reset_value: value assigned upon reset
+// __clk: clock input
+// __arst: asynchronous reset
+`define FFLAR(__q, __d, __load, __reset_value, __clk, __arst) \
+  always_ff @(posedge (__clk) or posedge (__arst)) begin      \
+    if (__arst) begin                                         \
+      __q <= (__reset_value);                                 \
+    end else begin                                            \
+      __q <= (__load) ? (__d) : (__q);                        \
+    end                                                       \
+  end
+
+// Flip-Flop with load-enable and asynchronous active-low reset
+// __q: Q output of FF
+// __d: D input of FF
+// __load: load d value into FF
+// __reset_value: value assigned upon reset
+// __clk: clock input
+// __arst_n: asynchronous reset
+`define FFLARN(__q, __d, __load, __reset_value, __clk, __arst_n) \
+  always_ff @(posedge (__clk) or negedge (__arst_n)) begin       \
+    if (!__arst_n) begin                                         \
+      __q <= (__reset_value);                                    \
+    end else begin                                               \
+      __q <= (__load) ? (__d) : (__q);                           \
+    end                                                          \
+  end
+
+// Flip-Flop with load-enable and synchronous active-high reset
+// __q: Q output of FF
+// __d: D input of FF
+// __load: load d value into FF
+// __reset_value: value assigned upon reset
+// __clk: clock input
+// __reset_clk: reset input
+`define FFLSR(__q, __d, __load, __reset_value, __clk, __reset_clk)       \
+    `ifndef VERILATOR                       \
+  /``* synopsys sync_set_reset `"__reset_clk`" *``/                      \
+    `endif                        \
+  always_ff @(posedge (__clk)) begin                                     \
+    __q <= (__reset_clk) ? (__reset_value) : ((__load) ? (__d) : (__q)); \
+  end
+
+// Flip-Flop with load-enable and synchronous active-low reset
+// __q: Q output of FF
+// __d: D input of FF
+// __load: load d value into FF
+// __reset_value: value assigned upon reset
+// __clk: clock input
+// __reset_n_clk: reset input
+`define FFLSRN(__q, __d, __load, __reset_value, __clk, __reset_n_clk)       \
+    `ifndef VERILATOR                       \
+  /``* synopsys sync_set_reset `"__reset_n_clk`" *``/                       \
+    `endif                        \
+  always_ff @(posedge (__clk)) begin                                        \
+    __q <= (!__reset_n_clk) ? (__reset_value) : ((__load) ? (__d) : (__q)); \
+  end
+
+// Flip-Flop with load-enable and asynchronous active-low reset and synchronous clear
+// __q: Q output of FF
+// __d: D input of FF
+// __load: load d value into FF
+// __clear: assign reset value into FF
+// __reset_value: value assigned upon reset
+// __clk: clock input
+// __arst_n: asynchronous reset
+`define FFLARNC(__q, __d, __load, __clear, __reset_value, __clk, __arst_n) \
+    `ifndef VERILATOR                       \
+  /``* synopsys sync_set_reset `"__clear`" *``/                       \
+    `endif                        \
+  always_ff @(posedge (__clk) or negedge (__arst_n)) begin                 \
+    if (!__arst_n) begin                                                   \
+      __q <= (__reset_value);                                              \
+    end else begin                                                         \
+      __q <= (__clear) ? (__reset_value) : (__load) ? (__d) : (__q);       \
+    end                                                                    \
+  end
+
+// Load-enable Flip-Flop without reset
+// __q: Q output of FF
+// __d: D input of FF
+// __load: load d value into FF
+// __clk: clock input
+`define FFLNR(__q, __d, __load, __clk) \
+  always_ff @(posedge (__clk)) begin   \
+    __q <= (__load) ? (__d) : (__q);   \
+  end
+
+`endif
 
 localparam NrMaxRules = 16;
-
 localparam cacheable_region = 1;
 localparam logic [NrMaxRules-1:0][63:0] CachedRegionAddrBase = {64'h8000_0000};
-localparam logic [NrMaxRules-1:0][63:0] CachedRegionLength =  {64'h2000_0000};
+localparam logic [NrMaxRules-1:0][63:0] CachedRegionLength =  {64'hF_8000_0000};
 
 typedef struct packed {
   int                               RASDepth;
@@ -161,6 +458,9 @@ typedef struct packed {
   logic [63:0]                      DmBaseAddress;         // offset of the debug module
 } sy_cfg_t;
 
+localparam logic [2:0][63:0] UnusedRegionAddrBase = {64'h1000,      64'h20C_0000,  64'h1000_0000};
+localparam logic [2:0][63:0] UnusedRegionLength   = {64'h1FF_F000,  64'h9F4_0000,  64'h3000_0000};
+
 localparam sy_cfg_t SyDefaultConfig = '{
   RASDepth: 2,
   BTBEntries: 32,
@@ -169,15 +469,14 @@ localparam sy_cfg_t SyDefaultConfig = '{
   NrNonIdempotentRules: 0,
   NonIdempotentAddrBase: {64'b0, 64'b0},
   NonIdempotentLength:   {64'b0, 64'b0},
-  NrExecuteRegionRules: 3,
-  //                      DRAM,          Boot ROM,   Debug Module
-  ExecuteRegionAddrBase: {64'h8000_0000, 64'h1_0000, 64'h0},
-  ExecuteRegionLength:   {64'h40000000,  64'h10000,  64'h1000},
+  NrExecuteRegionRules: 4,
+  //                      DRAM,            Boot ROM,       Debug Module,  4M shared mem
+  ExecuteRegionAddrBase: {64'h8000_0000,   64'h5000_0000,  64'h0   ,       64'h4000_0000},
+  ExecuteRegionLength:   {64'hF_8000_0000, 64'h1000_0000,  64'h1000,       64'h100_0000},
   // cached region
   NrCachedRegionRules:    1,
-  // CachedRegionAddrBase:  {64'h8000_0000},
   CachedRegionAddrBase:  {64'h8000_0000},
-  CachedRegionLength:    {64'h40000000},
+  CachedRegionLength:    {64'hF_8000_0000},
   //  cache config
   Axi64BitCompliant:      1'b1,
   SwapEndianess:          1'b0,
@@ -305,8 +604,8 @@ parameter BR_FU3_BGE  = 3'h5;
 parameter BR_FU3_BLTU = 3'h6;
 parameter BR_FU3_BGEU = 3'h7;
 // MISC-MEM FUNCT3 encodings
-parameter MEM_FU3_FENCE     = 1'b0;
-parameter MEM_FU3_FENCE_I   = 1'b1;
+parameter MEM_FU3_FENCE     = 3'b0;
+parameter MEM_FU3_FENCE_I   = 3'b1;
 // SYSTEM FUNCT3 encodings
 parameter SYS_FU3_PRIV   = 3'h0;
 parameter SYS_FU3_CSRRW  = 3'h1;
@@ -545,6 +844,14 @@ typedef struct packed {
 //----------------------------------------------------------------------------------------------------------------------
 // BTB/BHT/RAS
 //----------------------------------------------------------------------------------------------------------------------
+typedef enum logic[1:0] { 
+  NORMAL_ADDR = 0,
+  BTB_ADDR    = 1,
+  RAS_ADDR    = 2,
+  JUMP_ADDR   = 3
+} npc_type_e;
+
+
 typedef struct packed {
     logic                       vld;
     logic[AWTH-1:0]             pc;     
@@ -691,14 +998,14 @@ localparam bit XF8     = 1'b0; // Is quarter-precision float extension (Xf8) ena
 localparam bit XFVEC   = 1'b0; // Is vectorial float extension (Xfvec) enabled
 
 // Transprecision float unit
-localparam int unsigned LAT_COMP_FP32    = 'd2;
+localparam int unsigned LAT_COMP_FP32    = 'd3;
 localparam int unsigned LAT_COMP_FP64    = 'd3;
-localparam int unsigned LAT_COMP_FP16    = 'd1;
-localparam int unsigned LAT_COMP_FP16ALT = 'd1;
-localparam int unsigned LAT_COMP_FP8     = 'd1;
-localparam int unsigned LAT_DIVSQRT      = 'd2;
-localparam int unsigned LAT_NONCOMP      = 'd1;
-localparam int unsigned LAT_CONV         = 'd2;
+localparam int unsigned LAT_COMP_FP16    = 'd3;
+localparam int unsigned LAT_COMP_FP16ALT = 'd3;
+localparam int unsigned LAT_COMP_FP8     = 'd3;
+localparam int unsigned LAT_DIVSQRT      = 'd3;
+localparam int unsigned LAT_NONCOMP      = 'd3;
+localparam int unsigned LAT_CONV         = 'd3;
 
 // --------------------------------------
 // vvvv Don't change these by hand! vvvv
@@ -880,20 +1187,20 @@ typedef enum logic [11:0] {
     CSR_TIME           = 12'hC01,
     CSR_INSTRET        = 12'hC02,
     // Performance counters (User Mode - R/O Shadows)
-    CSR_L1_ICACHE_MISS = 12'hC03,  // L1 Instr Cache Miss
-    CSR_L1_DCACHE_MISS = 12'hC04,  // L1 Data Cache Miss
-    CSR_ITLB_MISS      = 12'hC05,  // ITLB Miss
-    CSR_DTLB_MISS      = 12'hC06,  // DTLB Miss
-    CSR_LOAD           = 12'hC07,  // Loads
-    CSR_STORE          = 12'hC08,  // Stores
-    CSR_EXCEPTION      = 12'hC09,  // Taken exceptions
-    CSR_EXCEPTION_RET  = 12'hC0A,  // Exception return
-    CSR_BRANCH_JUMP    = 12'hC0B,  // Software change of PC
-    CSR_CALL           = 12'hC0C,  // Procedure call
-    CSR_RET            = 12'hC0D,  // Procedure Return
-    CSR_MIS_PREDICT    = 12'hC0E,  // Branch mis-predicted
-    CSR_SB_FULL        = 12'hC0F,  // Scoreboard full
-    CSR_IF_EMPTY       = 12'hC10,  // instruction fetch queue empty
+    CSR_TOT_JBR_INSTR  = 12'hC03,  // 
+    CSR_MISPRED        = 12'hC04,  // 
+    CSR_IC_ACCESS      = 12'hC05,  // 
+    CSR_DC_ACCESS      = 12'hC06,  // 
+    CSR_IC_MISS        = 12'hC07,  // 
+    CSR_DC_MISS        = 12'hC08,  //
+    CSR_HPM_COUNTER_09 = 12'hC09,  // reserved
+    CSR_HPM_COUNTER_10 = 12'hC0A,  // reserved
+    CSR_HPM_COUNTER_11 = 12'hC0B,  // reserved
+    CSR_HPM_COUNTER_12 = 12'hC0C,  // reserved
+    CSR_HPM_COUNTER_13 = 12'hC0D,  // reserved
+    CSR_HPM_COUNTER_14 = 12'hC0E,  // reserved
+    CSR_HPM_COUNTER_15 = 12'hC0F,  // reserved
+    CSR_HPM_COUNTER_16 = 12'hC10,  // reserved
     CSR_HPM_COUNTER_17 = 12'hC11,  // reserved
     CSR_HPM_COUNTER_18 = 12'hC12,  // reserved
     CSR_HPM_COUNTER_19 = 12'hC13,  // reserved
@@ -984,7 +1291,7 @@ localparam logic [63:0] SMODE_STATUS_WRITE_MASK = SSTATUS_SIE
                                                 | SSTATUS_SUM
                                                 | SSTATUS_MXR;
 
-localparam logic [63:0] SY_MARCHID = 64'd3;
+localparam logic [63:0] SY_MARCHID = 64'h610;
 
 
 localparam logic [63:0] ISA_CODE = (RVA <<  0)  // A - Atomic Instructions extension
@@ -1001,12 +1308,16 @@ localparam logic [63:0] ISA_CODE = (RVA <<  0)  // A - Atomic Instructions exten
 localparam logic [3:0] MODE_SV39 = 4'h8;
 localparam logic [3:0] MODE_OFF = 4'h0;
 
+// typedef struct packed {
+//   logic [63:0] mie;
+//   logic [63:0] mip;
+//   logic [63:0] mideleg;
+//   logic        sie;
+//   logic        global_enable;
+// } irq_ctrl_t;
 typedef struct packed {
-  logic [63:0] mie;
-  logic [63:0] mip;
-  logic [63:0] mideleg;
-  logic        sie;
-  logic        global_enable;
+    logic intr_en;
+    logic [63:0] intr_cause;
 } irq_ctrl_t;
 
 localparam SupervisorIrq = 1;
@@ -1083,7 +1394,7 @@ parameter L2_CACHE_WAY_NUM         = 8;
 parameter L2_CACHE_WAY_WTH         = $clog2(L2_CACHE_WAY_NUM);
 
 parameter L2_CACHE_TAG_LSB         = 14;
-parameter L2_CACHE_TAG_WTH         = 18;
+parameter L2_CACHE_TAG_WTH         = 22;
 parameter L2_CACHE_TAG_MSB         = L2_CACHE_TAG_LSB + L2_CACHE_TAG_WTH;
 
 parameter L2_CACHE_SET_LSB         = 8;           
@@ -1196,13 +1507,6 @@ typedef struct packed {
   logic [L2_CACHE_WAY_NUM-1:0][L2_CACHE_DATA_SIZE*8-1:0]    rd_data; 
 } L2_data_rsp_t;
 
-
-typedef struct packed {
-    logic                     fetch_valid;     // address translation valid
-    logic [63:0]              fetch_paddr;     // physical address in
-    exception_t               fetch_exception; // exception occurred during fetch
-} icache_areq_i_t;
-
 typedef struct packed {
     logic                     fetch_valid;     // address translation valid
     logic [63:0]              fetch_paddr;     // physical address in
@@ -1212,14 +1516,7 @@ typedef struct packed {
 typedef struct packed {
     logic                     fetch_req;       // address translation request
     logic [63:0]              fetch_vaddr;     // virtual address out
-    logic                     cacheable;
 } icache_mmu_req_t;
-
-
-typedef struct packed {
-    logic                     fetch_req;       // address translation request
-    logic [63:0]              fetch_vaddr;     // virtual address out
-} icache_areq_o_t;
 
 // I$ data requests
 typedef struct packed {
@@ -1239,17 +1536,15 @@ typedef struct packed {
 
 // I$ data requests
 typedef struct packed {
-    logic                     req;                    // we request a new word
-    logic                     kill;                // kill the current request
-    logic [63:0]              vaddr;                  // 1st cycle: 12 bit index is taken for lookup
+    logic [ICACHE_TAG_LSB-1:0]     addr_inx;  
+    logic [ICACHE_TAG_WTH-1:0]     addr_tag;
+    logic                          kill; 
 } fetch_req_t;
 
 typedef struct packed {
-    logic                     ready;                  // icache is ready
-    logic                     valid;                  // signals a valid read
-    logic [FETCH_WIDTH-1:0]   data;                   // 2+ cycle out: tag
-    logic [63:0]              vaddr;                  // virtual address out
-    exception_t               ex;                     // we've encountered an exception
+    logic                     valid;                  
+    logic [FETCH_WIDTH-1:0]   data;                   
+    logic [AWTH-1:0]          vaddr;
 } fetch_rsp_t;
 
 typedef enum logic [3:0] {
@@ -1332,7 +1627,6 @@ parameter VPN_PER_WIDTH = 9;
 parameter VPN_WIDTH = 27;
 parameter PAGE_OFFSET_WIDTH = 12;
 parameter PPN_WIDTH = 44;
-parameter ADDR_WIDTH = 64;
 parameter VADDR_WIDTH = 39;
 parameter PADDR_WIDTH = 56;
 
@@ -1358,6 +1652,38 @@ typedef struct packed {
     logic [ASID_WIDTH-1:0] asid;
     pte_t           content;
 } tlb_update_t;
+
+/// 32 bit address, 32 bit data request package
+typedef struct packed {
+    logic [31:0] addr;
+    logic        write;
+    logic [31:0] wdata;
+    logic [3:0]  wstrb;
+    logic        valid;
+} reg_intf_req_a32_d32;
+
+/// 32 bit address, 64 bit data request package
+typedef struct packed {
+    logic [31:0] addr;
+    logic        write;
+    logic [63:0] wdata;
+    logic [7:0]  wstrb;
+    logic        valid;
+} reg_intf_req_a32_d64;
+
+/// 32 bit Response packages
+typedef struct packed {
+    logic [31:0] rdata;
+    logic        error;
+    logic        ready;
+} reg_intf_resp_d32;
+
+/// 32 bit Response packages
+typedef struct packed {
+    logic [63:0] rdata;
+    logic        error;
+    logic        ready;
+} reg_intf_resp_d64;
 
 //----------------------------------------------------------------------------------------------------------------------
 // Functions
@@ -1395,6 +1721,16 @@ function automatic logic is_inside_execute_regions (sy_cfg_t Cfg, logic[63:0] ad
   end
   return |pass;
 endfunction : is_inside_execute_regions
+
+function automatic logic is_inside_unused_regions (logic[63:0] address);
+  logic [2:0] pass;
+  pass = '0;
+  for (int unsigned k = 0; k < 3; k++) begin
+    pass[k] = range_check(UnusedRegionAddrBase[k], UnusedRegionLength[k], address);
+  end
+  return |pass;
+endfunction : is_inside_unused_regions
+
 
 function automatic logic [6 : 0] get_rvcls(logic [IWTH-1 : 0] instruction_i);
     return { instruction_i[6 : 0] };

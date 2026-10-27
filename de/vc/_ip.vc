@@ -1,0 +1,5 @@
+${DE_HOME}/ip/sram/sim/sp_sram_unified.sv
+${DE_HOME}/ip/sram/sp_512x64sd1_wrap.sv
+${DE_HOME}/ip/sram/sp_2048x64sd1_wrap.sv
+${DE_HOME}/ip/algebra/mul64x64_d3_wrap.sv
+${DE_HOME}/ip/algebra/div64x64_seq_wrap.sv

@@ -13,7 +13,7 @@ int copy(){
     // flush D cache
     __asm__ volatile("fence.i"); 
     // copy 16M data from sd to ddr
-    int res = sd_read_data_with_dma(0x80000000, 0x800, 2 * 16384);
+    int res = sd_read_data_with_dma(0x80000000, 0x800, 2 * 16384 + 8192);
 
     if (res != 0)
     {

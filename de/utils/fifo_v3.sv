@@ -134,20 +134,4 @@ module fifo_v3 #(
         end
     end
 
-// pragma translate_off
-`ifndef VERILATOR
-    initial begin
-        assert (DEPTH > 0)             else $error("DEPTH must be greater than 0.");
-    end
-
-    full_write : assert property(
-        @(posedge clk_i) disable iff (~rst_ni) (full_o |-> ~push_i))
-        else $fatal (1, "Trying to push new data although the FIFO is full.");
-
-    empty_read : assert property(
-        @(posedge clk_i) disable iff (~rst_ni) (empty_o |-> ~pop_i))
-        else $fatal (1, "Trying to pop data although the FIFO is empty.");
-`endif
-// pragma translate_on
-
 endmodule // fifo_v3

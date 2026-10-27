@@ -1,0 +1,6 @@
+${DE_HOME}/inc/dbg_pkg.sv
+${DE_HOME}/inc/dm_pkg.sv
+${DE_HOME}/inc/axi_pkg.sv
+${DE_HOME}/inc/sy_pkg.sv
+${DE_HOME}/inc/tl_pkg.sv
+${DE_HOME}/inc/sy_soc_pkg.sv

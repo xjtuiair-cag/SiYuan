@@ -1,38 +1,31 @@
-// +FHDR------------------------------------------------------------------------
-// XJTU IAIR Corporation All Rights Reserved
-// -----------------------------------------------------------------------------
-// FILE NAME  : 
-// DEPARTMENT : CAG of IAIR
-// AUTHOR     : 
-// AUTHOR'S EMAIL :
-// -----------------------------------------------------------------------------
-// Ver 1.0  2025--01--01 initial version.
-// -----------------------------------------------------------------------------
-// KEYWORDS   : 
-// -----------------------------------------------------------------------------
-// PURPOSE    :
-// -----------------------------------------------------------------------------
-// PARAMETERS :
-// -----------------------------------------------------------------------------
-// REUSE ISSUES
-// Reset Strategy   :
-// Clock Domains    :
-// Critical Timing  :
-// Test Features    :
-// Asynchronous I/F :
-// Scan Methodology : N
-// Instantiations   : N
-// Synthesizable    : Y
-// Other :
-// -FHDR------------------------------------------------------------------------
+// ---------------------------------------------------------------------------------------------------------------------
+// Copyright (c) 1986-2022, CAG(Computer Architecture Group), Institute of AI and Robotics, Xi'an Jiaotong University.
+// Proprietary and Confidential All Rights Reserved.
+// ---------------------------------------------------------------------------------------------------------------------
+// NOTICE: All information contained herein is, and remains the property of CAG, Institute of AI and Robotics,  Xi'an
+// Jiaotong University. The intellectual and technical concepts contained herein are proprietary to CAG team, and may be
+// covered by P.R.C. and Foreign Patents, patents in process, and are protected by trade secret or copyright law.
+//
+// This work may not be copied, modified, re-published, uploaded, executed, or distributed in any way, in any time, in
+// any medium, whether in whole or in part, without prior written permission from CAG, Institute of AI and Robotics,
+// Xi'an Jiaotong University.
+//
+// The copyright notice above does not evidence any actual or intended publication or disclosure of this source code,
+// which includes information that is confidential and/or proprietary, and is a trade secret of CAG.
+// ---------------------------------------------------------------------------------------------------------------------
+// FILE NAME  : dbg_pkg.sv
+// DEPARTMENT : Computer Architecture Group
+// AUTHOR     : wenzhe
+// AUTHOR'S EMAIL : venturezhao@gmail.com
+// ---------------------------------------------------------------------------------------------------------------------
+// Ver 2.0  2022-01-01 initial version.
+// ---------------------------------------------------------------------------------------------------------------------
 
 package dbg_pkg;
 
-// `include "glb_def.svh"
-
 // parameter NrHarts = 1;
 
-parameter BUSWTH = 32;                    // bus width
+parameter BUSWTH = 32;                  // bus width
 
 // -----
 // DTM
@@ -43,6 +36,13 @@ parameter BUSWTH = 32;                    // bus width
 // [                    xxxxxxxxxxx ] manufacturer id
 // [                               1] required by standard
 parameter logic [31:0] IDCODE_VALUE = 32'h1C031001;
+
+// JTAG IDCODE Value
+// [xxxx                            ] version
+// [    xxxxxxxxxxxxxxxx            ] part number
+// [                    xxxxxxxxxxx ] manufacturer id
+// [                               1] required by standard
+parameter logic [31:0] DBG_IDCODE_VALUE = 32'h1DB60001;
 
 typedef enum logic [1:0] {
     DTM_NOP   = 2'h0,
