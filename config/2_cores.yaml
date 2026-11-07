@@ -1,8 +1,28 @@
 Core_num: 2
-Uart: True # Uart must be true
-SPI: True # SPI must be true
-GPIO: True
-DMA: True
-FFT: True
-NPU: False
-Ethernet: False
+DEBUG:
+  base addr : 0x00000000
+  length    : 0x1000
+DRAM:
+  base addr : 0x80000000
+  length    : 0x80000000
+PLIC:
+  base addr : 0x0C000000
+  length    : 0x4000000
+CLINT:
+  base addr : 0x02000000
+  length    : 0xC0000
+Uart:
+  base addr : 0x41810000
+  length    : 0x1000
+DMA:
+  base addr : 0x41820000
+  length    : 0x1000
+REGMAP:
+  base addr : 0x41840000
+  length    : 0x10000
+SD:
+  base addr : 0x41850000
+  length    : 0x7B0000
+BOOTROM:
+  base addr : 0x42000000
+  length    : 0x3E000000

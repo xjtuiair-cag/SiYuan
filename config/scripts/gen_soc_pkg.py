@@ -1,406 +1,182 @@
-import yaml
-import argparse
+#!/usr/bin/env python3
+"""Generate de/inc/sy_soc_pkg.sv from a SoC YAML config (e.g. config/1_core.yaml)."""
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("-f", "--file_path", help="config file path")
-    parser.add_argument("-o", "--output", help="output file name")
+import argparse
+import os
+import re
+import sys
+
+import yaml
+
+# YAML key -> SystemVerilog parameter prefix (XxxBase / XxxLength)
+NAME_MAP = {
+    "DEBUG": "DBG",
+    "DBG": "DBG",
+    "DRAM": "DRAM",
+    "PLIC": "PLIC",
+    "CLINT": "CLINT",
+    "UART": "UART",
+    "Uart": "UART",
+    "DMA": "DMA",
+    "REGMAP": "REGMAP",
+    "SD": "SD",
+    "BOOTROM": "BOOTROM",
+}
+
+# Emission order matching de/inc/sy_soc_pkg.sv
+PERIPH_ORDER = [
+    "DBG",
+    "DRAM",
+    "PLIC",
+    "CLINT",
+    "UART",
+    "DMA",
+    "REGMAP",
+    "SD",
+    "BOOTROM",
+]
+
+ADDR_WIDTH = 64
+SKIP_KEYS = {"Core_num", "core_num", "CORE_NUM"}
+
+
+def to_sv_hex(val, width=ADDR_WIDTH):
+    """Format integer as SystemVerilog hex literal with '_' every 4 digits."""
+    if val == 0:
+        return f"{width}'h0000_0000"
+    hex_str = f"{val:X}"
+    groups = []
+    while hex_str:
+        groups.append(hex_str[-4:])
+        hex_str = hex_str[:-4]
+    return f"{width}'h{'_'.join(reversed(groups))}"
+
+
+def _normalize_key(key):
+    return re.sub(r"[\s_\-]+", "", str(key).lower())
+
+
+def parse_periph_fields(raw):
+    """
+    Accept either:
+      base addr: 0x...
+      length: 0x...
+    or list form:
+      - base addr: 0x...
+      - length: 0x...
+    Also tolerate legacy keys like '-base addr' / '-length'.
+    """
+    fields = {}
+    if isinstance(raw, dict):
+        items = raw.items()
+    elif isinstance(raw, list):
+        items = []
+        for entry in raw:
+            if isinstance(entry, dict):
+                items.extend(entry.items())
+            else:
+                raise ValueError(f"Unexpected peripheral list entry: {entry!r}")
+    elif raw is True:
+        raise ValueError("Peripheral enabled without base addr / length")
+    elif raw is False or raw is None:
+        return None
+    else:
+        raise ValueError(f"Unsupported peripheral value: {raw!r}")
+
+    for key, val in items:
+        nk = _normalize_key(key)
+        if nk in ("baseaddr", "base", "addr", "start"):
+            fields["base"] = int(val)
+        elif nk in ("length", "len", "size"):
+            fields["length"] = int(val)
+
+    if "base" not in fields or "length" not in fields:
+        raise ValueError(f"Missing base addr / length in {raw!r}")
+    return fields
+
+
+def collect_peripherals(cfg):
+    periphs = {}
+    for key, raw in cfg.items():
+        if key in SKIP_KEYS:
+            continue
+        sv_name = NAME_MAP.get(key, key.upper())
+        fields = parse_periph_fields(raw)
+        if fields is None:
+            continue
+        periphs[sv_name] = fields
+    return periphs
+
+
+def generate_sv(cfg):
+    if "Core_num" in cfg:
+        core_num = cfg["Core_num"]
+    elif "core" in cfg and isinstance(cfg["core"], dict):
+        core_num = cfg["core"]["num"]
+    else:
+        raise KeyError("Core_num not found in config")
+
+    periphs = collect_peripherals(cfg)
+
+    lines = []
+    sep = "//" + "-" * 118
+    lines.append("// Auto Generated, don't modify!!!")
+    lines.append("package sy_soc_pkg;")
+    lines.append(sep)
+    lines.append("// SOC parameters")
+    lines.append(sep)
+    lines.append(f"parameter integer CORE_NUM = {core_num};")
+    lines.append("")
+
+    # Prefer fixed order, then any extra peripherals from YAML
+    ordered = [n for n in PERIPH_ORDER if n in periphs]
+    extras = [n for n in periphs if n not in PERIPH_ORDER]
+    name_width = max(len(n) for n in ordered + extras)
+    for name in ordered + extras:
+        info = periphs[name]
+        pad = " " * (name_width - len(name))
+        lines.append(f"parameter {name}Base{pad}   = {to_sv_hex(info['base'])};")
+        lines.append(f"parameter {name}Length{pad} = {to_sv_hex(info['length'])};")
+
+    lines.append("")
+    lines.append(f"parameter ReservedBase   = {{{ADDR_WIDTH}{{1'b1}}}};")
+    lines.append("parameter ReservedLength = 1;")
+    lines.append("")
+    lines.append("endpackage")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Generate sy_soc_pkg.sv from SoC YAML config"
+    )
+    parser.add_argument("-f", "--file_path", required=True, help="config YAML path")
+    parser.add_argument(
+        "-o",
+        "--output",
+        default=None,
+        help="output SystemVerilog path (default: <repo>/de/inc/sy_soc_pkg.sv)",
+    )
     args = parser.parse_args()
 
-    file_path = args.file_path
-    # Read YAML file
-    with open(file_path, "r", encoding="utf-8") as file:
-        cfg = yaml.safe_load(file)
+    with open(args.file_path, "r", encoding="utf-8") as f:
+        cfg = yaml.safe_load(f)
 
-    core_num = cfg["Core_num"]
-    phri_slave_num = 1  # bootrom
-    npu_slave_num = 1   # debug module
-    ctrl_slave_num = 3 # clint/plic/RegMap
+    sv = generate_sv(cfg)
 
-    bootrom_loc  = 0
-    uart_loc     = 1
-    spi_loc      = 2
-    gpio_loc     = 3
-    ethernet_loc = 4
-
-    debug_loc    = 0
-    dma_loc      = 1
-    fft_loc      = 2
-    npu_loc      = 3
-
-    uart_en     = 0 
-    spi_en      = 0 
-    gpio_en     = 0 
-    dma_en      = 0 
-    fft_en      = 0
-    npu_en      = 0
-    ethernet_en = 0 
-
-    if cfg["Uart"]: 
-        phri_slave_num += 1
-        uart_en = 1
-    if cfg["SPI"]:
-        phri_slave_num += 1
-        spi_en = 1
+    if args.output:
+        out_path = args.output
     else:
-        gpio_loc = spi_loc
-        spi_loc = 0
-    if cfg["GPIO"]:
-        phri_slave_num += 1
-        gpio_en = 1
-    else: 
-        ethernet_loc = gpio_loc
-        gpio_loc = 0
-    if cfg["Ethernet"]:
-        phri_slave_num += 1
-        ethernet_en = 1
-    else: 
-        ethernet_loc = 0 
+        repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
+        out_path = os.path.join(repo_root, "de", "inc", "sy_soc_pkg.sv")
 
-    if cfg["DMA"]:
-        npu_slave_num += 1
-        dma_en = 1
-    else: 
-        fft_loc = dma_loc
-        dma_loc = 0
+    os.makedirs(os.path.dirname(os.path.abspath(out_path)) or ".", exist_ok=True)
+    with open(out_path, "w", encoding="utf-8") as f:
+        f.write(sv)
 
-    if cfg["FFT"]:
-        npu_slave_num += 1
-        fft_en = 1
-    else: 
-        npu_loc = fft_loc
-        fft_loc = 0
-
-    if cfg["NPU"]:
-        npu_slave_num += 1
-        npu_en = 1
-    else: 
-        npu_loc = 0
-
-    sys_bus_region = max(max(phri_slave_num, ctrl_slave_num),npu_slave_num)
-    output = "// Auto Generated, don't modify!!!\npackage sy_soc_pkg;\n"
-    # add core num
-    output += "parameter integer CORE_NUM = {};\n".format(core_num)
-    output += '''
-    parameter UART_EN = {};
-    parameter SPI_EN = {};
-    parameter GPIO_EN = {};
-    parameter DMA_EN = {};
-    parameter FFT_EN = {};
-    parameter NPU_EN = {};
-    parameter ETHERNET_EN = {};
-    '''.format(uart_en, spi_en, gpio_en, dma_en, fft_en, npu_en, ethernet_en)
-    # add Address Range of each peripheral (don't modified)
-    output += '''
-    parameter integer ADDR_WIDTH = 64;
-    parameter DBGBase        = 64'h0000_0000;
-    parameter DBGLength      = 64'h1000;
-    parameter REGMAPBase     = 64'h61_0000;
-    parameter REGMAPLength   = 64'h1000;
-    parameter UARTBase       = 64'h1000_0000;
-    parameter UARTLength     = 64'h1000;
-    parameter DRAMBase       = 64'h8000_0000;
-    parameter DRAMLength     = 64'h2000_0000; 
-    parameter NPU_DRAMBase   = 64'hA000_0000;
-    parameter NPU_DRAMLength = 64'h2000_0000; 
-    parameter PLICBase       = 64'h0C00_0000;
-    parameter PLICLength     = 64'h3FF_FFFF;
-    parameter CLINTBase      = 64'h0200_0000;
-    parameter CLINTLength    = 64'hC0000;
-    parameter ROMBase        = 64'h0001_0000;
-    parameter ROMLength      = 64'h10000;
-    parameter DMABase        = 64'h3_0000;
-    parameter DMALength      = 64'h1000;
-    parameter FFTBase        = 64'h4_0000;
-    parameter FFTLength      = 64'h1000;
-    parameter SPIBase        = 64'h2000_0000;
-    parameter SPILength      = 64'h800000;
-    parameter GPIOBase       = 64'h4000_0000;
-    parameter GPIOLength     = 64'h1000;
-    parameter NPUBase        = 64'h2000;
-    parameter NPULength      = 64'h1000;
-    parameter EthernetBase   = 64'h3000_0000;
-    parameter EthernetLength = 64'h1_0000;
-    parameter ReservedBase   = {64{1'b1}};
-    parameter ReservedLength = 1;
-
-    parameter logic [ADDR_WIDTH-1:0] DEBUG_START  = DBGBase;
-    parameter logic [ADDR_WIDTH-1:0] DEBUG_END    = DBGBase + DBGLength - 1;
-
-    parameter logic [ADDR_WIDTH-1:0] REGMAP_START  = REGMAPBase;
-    parameter logic [ADDR_WIDTH-1:0] REGMAP_END    = REGMAPBase + REGMAPLength - 1;
-
-    parameter logic [ADDR_WIDTH-1:0] DRAM_START  = DRAMBase;
-    parameter logic [ADDR_WIDTH-1:0] DRAM_END    = DRAMBase + DRAMLength - 1;
-
-    parameter logic [ADDR_WIDTH-1:0] NPU_DRAM_START  = NPU_DRAMBase;
-    parameter logic [ADDR_WIDTH-1:0] NPU_DRAM_END    = NPU_DRAMBase + NPU_DRAMLength - 1;
-
-    parameter logic [ADDR_WIDTH-1:0] PLIC_START  = PLICBase;
-    parameter logic [ADDR_WIDTH-1:0] PLIC_END    = PLICBase + PLICLength - 1;
-
-    parameter logic [ADDR_WIDTH-1:0] CLINT_START = CLINTBase;
-    parameter logic [ADDR_WIDTH-1:0] CLINT_END   = CLINTBase + CLINTLength - 1;
-
-    parameter logic [ADDR_WIDTH-1:0] ROM_START   = ROMBase;
-    parameter logic [ADDR_WIDTH-1:0] ROM_END     = ROMBase + ROMLength - 1;
-
-    parameter logic [ADDR_WIDTH-1:0] UART_START  = UARTBase;
-    parameter logic [ADDR_WIDTH-1:0] UART_END    = UARTBase + UARTLength - 1;
-
-    parameter logic [ADDR_WIDTH-1:0] DMA_START   = DMABase;
-    parameter logic [ADDR_WIDTH-1:0] DMA_END     = DMABase + DMALength - 1;
-
-    parameter logic [ADDR_WIDTH-1:0] FFT_START   = FFTBase;
-    parameter logic [ADDR_WIDTH-1:0] FFT_END     = FFTBase + FFTLength - 1;
-
-    parameter logic [ADDR_WIDTH-1:0] NPU_START   = NPUBase;
-    parameter logic [ADDR_WIDTH-1:0] NPU_END     = NPUBase + NPULength - 1;
-
-    parameter logic [ADDR_WIDTH-1:0] GPIO_START  = GPIOBase;
-    parameter logic [ADDR_WIDTH-1:0] GPIO_END    = GPIOBase + GPIOLength - 1;
-
-    parameter logic [ADDR_WIDTH-1:0] ETH_START   = EthernetBase;
-    parameter logic [ADDR_WIDTH-1:0] ETH_END     = EthernetBase + EthernetLength - 1;
-
-    parameter logic [ADDR_WIDTH-1:0] SPI_START   = SPIBase;
-    parameter logic [ADDR_WIDTH-1:0] SPI_END     = SPIBase + SPILength - 1;
-
-    parameter logic [ADDR_WIDTH-1:0] RESERVED_START   = ReservedBase;
-    parameter logic [ADDR_WIDTH-1:0] RESERVED_END     = ReservedBase+ ReservedLength - 1;
-    '''
-    output += '''
-    // location in each bus
-    parameter DMEM  = 0;
-    parameter CTRL_BUS = 1;
-    parameter PHRI_BUS = 2;
-    parameter NPU_BUS = 3;
-    // control bus
-    parameter REGMAP = 0;
-    parameter PLIC  = 1;
-    parameter CLINT = 2;
-    '''
-    output += '''
-    // peripheral bus
-    parameter ROM   = {};
-    parameter UART  = {};
-    parameter SPI   = {};
-    parameter GPIO  = {};
-    parameter ETHERNET = {};   
-    '''.format(bootrom_loc, uart_loc, spi_loc, gpio_loc , ethernet_loc)
-
-    output += '''
-    // NPU bus
-    parameter DEBUG = {};
-    parameter DMA   = {};
-    parameter FFT   = {};
-    parameter NPU   = {};
-    '''.format(debug_loc,dma_loc,fft_loc,npu_loc)
-
-    # System Bus config
-    output += '''
-    parameter SYS_BUS_REGION     = {};
-    parameter SYS_BUS_SLAVE_NUM  = 4;
-    parameter SYS_BUS_SRC_LSB    = 1;
-    parameter SYS_BUS_SRC_MSB    = SYS_BUS_SRC_LSB + $clog2(CORE_NUM+1);
-    '''.format(sys_bus_region)
-    
-    # Control Bus config
-    # control bus region always set to 1, so don't modify it
-    # control bus slave num always set to 3 (clint/plic/bootrom), so don't modify it
-    output += '''
-    parameter CTRL_BUS_REGION    = 1;
-    parameter CTRL_BUS_SLAVE_NUM = 3;
-    parameter CTRL_BUS_SRC_LSB   = SYS_BUS_SRC_MSB;
-    parameter CTRL_BUS_SRC_MSB   = CTRL_BUS_SRC_LSB + 1;
-    '''
-    # peripherals bus config
-    # peripherals bus region always set to 1, so don't modify it
-    output += '''
-    parameter PHRI_BUS_REGION    = 1;     
-    parameter PHRI_BUS_SLAVE_NUM = {};
-    parameter PHRI_BUS_SRC_LSB   = SYS_BUS_SRC_MSB;
-    parameter PHRI_BUS_SRC_MSB   = PHRI_BUS_SRC_LSB + 1;
-    '''.format(phri_slave_num)
-    output += '''
-    parameter NPU_BUS_REGION    = 1;     
-    parameter NPU_BUS_SLAVE_NUM = {};
-    parameter NPU_BUS_SRC_LSB   = SYS_BUS_SRC_MSB;
-    parameter NPU_BUS_SRC_MSB   = NPU_BUS_SRC_LSB + 1;
-    '''.format(npu_slave_num)
-
-    output += '''
-    parameter MEM_BUS_REGION    = 1;     
-    parameter MEM_BUS_SLAVE_NUM = 1;
-    parameter MEM_BUS_SRC_LSB   = NPU_BUS_SRC_MSB;
-    parameter MEM_BUS_SRC_MSB   = MEM_BUS_SRC_LSB + $clog2(NPU_BUS_SLAVE_NUM);
-    '''
-
-    # system bus
-    phri_region_start = "{"
-    phri_region_en    = "{"
-    if phri_slave_num < 3: 
-        for i in range(3-phri_slave_num):
-            phri_region_start += "RESERVED_START,"
-            phri_region_en    += "1'b0,"
-    # bootrom
-    phri_region_start += "ROM_START"
-    phri_region_en    += "1'b1"
-    if cfg["Uart"]: 
-        phri_region_start += ",UART_START"
-        phri_region_en    += ",1'b1"
-    if cfg["SPI"]:
-        phri_region_start += ",SPI_START"
-        phri_region_en    += ",1'b1"
-    if cfg["GPIO"]:
-        phri_region_start += ",GPIO_START"
-        phri_region_en    += ",1'b1"
-    if cfg["Ethernet"]:
-        phri_region_start += ",ETH_START"
-        phri_region_en    += ",1'b1"
-
-    phri_region_start += "},\n"
-    phri_region_en    += "},\n"
-    phri_region_end = phri_region_start.replace("START","END")
+    print(f"Generated {out_path}")
 
 
-    npu_region_start = "{"
-    npu_region_en    = "{"
-    if npu_slave_num < sys_bus_region: 
-        for i in range(sys_bus_region-npu_slave_num):
-            npu_region_start += "RESERVED_START,"
-            npu_region_en    += "1'b0,"
-    # NPU DMEM
-    npu_region_start += "DEBUG_START"
-    npu_region_en    += "1'b1"
-    if cfg["DMA"]:
-        npu_region_start += ",DMA_START"
-        npu_region_en    += ",1'b1"
-    if cfg["FFT"]:
-        npu_region_start += ",FFT_START"
-        npu_region_en    += ",1'b1"
-    if cfg["NPU"]:
-        npu_region_start += ",NPU_START"
-        npu_region_en    += ",1'b1"
-
-    npu_region_start += "},\n"
-    npu_region_en    += "},\n"
-    npu_region_end = npu_region_start.replace("START","END")
-
-
-    ctrl_region_start = "{"
-    ctrl_region_en    = "{"
-    for i in range(sys_bus_region-3):
-        ctrl_region_start += "RESERVED_START,"
-        ctrl_region_en    += "1'b0,"
-    ctrl_region_start += "REGMAP_START,PLIC_START,CLINT_START},\n"
-    ctrl_region_en    += "1'b1,1'b1,1'b1},\n"
-    ctrl_region_end = ctrl_region_start.replace("START","END")
-
-    ddr_region_start = "{"
-    ddr_region_en    = "{"
-    for i in range(sys_bus_region-1):
-        ddr_region_start += "RESERVED_START,"
-        ddr_region_en    += "1'b0,"
-    ddr_region_start += "DRAM_START}\n"
-    ddr_region_en    += "1'b1}\n"
-    ddr_region_end = ddr_region_start.replace("START","END")
-
-    output += '''
-    parameter logic [SYS_BUS_SLAVE_NUM-1:0][SYS_BUS_REGION-1:0][ADDR_WIDTH-1:0]sys_bus_start_addr = {{
-    {}{}{}{}
-    }};
-    '''.format(npu_region_start,phri_region_start,ctrl_region_start,ddr_region_start)
-    output += '''
-    parameter logic [SYS_BUS_SLAVE_NUM-1:0][SYS_BUS_REGION-1:0][ADDR_WIDTH-1:0]sys_bus_end_addr = {{
-    {}{}{}{}
-    }};
-    '''.format(npu_region_end,phri_region_end,ctrl_region_end,ddr_region_end)
-    output += '''
-    parameter logic [SYS_BUS_SLAVE_NUM-1:0][SYS_BUS_REGION-1:0]sys_bus_region_en = {{
-    {}{}{}{}
-    }};
-    '''.format(npu_region_en,phri_region_en,ctrl_region_en,ddr_region_en)
-    # control bus
-    output += '''
-    parameter logic  [CTRL_BUS_SLAVE_NUM-1:0][CTRL_BUS_REGION-1:0][ADDR_WIDTH-1:0]ctrl_bus_start_addr = {
-       {CLINT_START,       PLIC_START,     REGMAP_START}      
-     };
-     parameter logic [CTRL_BUS_SLAVE_NUM-1:0][CTRL_BUS_REGION-1:0][ADDR_WIDTH-1:0]ctrl_bus_end_addr = {
-       {CLINT_END,         PLIC_END,       REGMAP_END}      
-     };
-     parameter logic [CTRL_BUS_SLAVE_NUM-1:0][CTRL_BUS_REGION-1:0]ctrl_bus_region_en = {
-       {1'b1, 1'b1, 1'b1}
-     };
-    '''
-    # phri bus
-    phri_bus_start = "}\n"
-    phri_bus_en = "}\n"
-    phri_slave = ["ROM","UART","SPI","GPIO","ETH"]
-    for i in range(phri_slave_num):
-        if i==0:
-            phri_bus_start = phri_slave[i] + "_START" + phri_bus_start
-            phri_bus_en    = "1'b1" + phri_bus_en
-        else:
-            phri_bus_start = phri_slave[i] + "_START," + phri_bus_start
-            phri_bus_en    = "1'b1," + phri_bus_en
-    phri_bus_start = "{" + phri_bus_start
-    phri_bus_en    = "{" + phri_bus_en
-    phri_bus_end = phri_bus_start.replace("START","END")
-
-    output += '''
-    parameter logic [PHRI_BUS_SLAVE_NUM-1:0][PHRI_BUS_REGION-1:0][ADDR_WIDTH-1:0]phri_bus_start_addr = {{
-    {}
-    }};
-    parameter logic [PHRI_BUS_SLAVE_NUM-1:0][PHRI_BUS_REGION-1:0][ADDR_WIDTH-1:0]phri_bus_end_addr = {{
-    {}
-    }};
-    parameter logic [PHRI_BUS_SLAVE_NUM-1:0][PHRI_BUS_REGION-1:0]phri_bus_region_en = {{
-    {}
-    }};
-    '''.format(phri_bus_start,phri_bus_end,phri_bus_en)
-    # NPU bus
-    npu_bus_start = "}\n"
-    npu_bus_en = "}\n"
-    npu_slave = ["DEBUG","DMA","FFT","NPU"]
-    for i in range(npu_slave_num):
-        if i==0:
-            npu_bus_start = npu_slave[i] + "_START" + npu_bus_start
-            npu_bus_en    = "1'b1" + npu_bus_en
-        else:
-            npu_bus_start = npu_slave[i] + "_START," + npu_bus_start
-            npu_bus_en    = "1'b1," + npu_bus_en
-    npu_bus_start = "{" + npu_bus_start
-    npu_bus_en    = "{" + npu_bus_en
-    npu_bus_end = npu_bus_start.replace("START","END")
-
-    output += '''
-    parameter logic [NPU_BUS_SLAVE_NUM-1:0][NPU_BUS_REGION-1:0][ADDR_WIDTH-1:0]npu_bus_start_addr = {{
-    {}
-    }};
-    parameter logic [NPU_BUS_SLAVE_NUM-1:0][NPU_BUS_REGION-1:0][ADDR_WIDTH-1:0]npu_bus_end_addr = {{
-    {}
-    }};
-    parameter logic [NPU_BUS_SLAVE_NUM-1:0][NPU_BUS_REGION-1:0]npu_bus_region_en = {{
-    {}
-    }};
-    '''.format(npu_bus_start,npu_bus_end,npu_bus_en)
-
-    output += '''
-    parameter logic [MEM_BUS_SLAVE_NUM-1:0][MEM_BUS_REGION-1:0][ADDR_WIDTH-1:0]mem_bus_start_addr = {{
-        64'b0
-    }};
-    parameter logic [MEM_BUS_SLAVE_NUM-1:0][MEM_BUS_REGION-1:0][ADDR_WIDTH-1:0]mem_bus_end_addr = {{
-        RESERVED_END
-    }};
-    parameter logic [MEM_BUS_SLAVE_NUM-1:0][MEM_BUS_REGION-1:0]mem_bus_region_en = {{
-        1'b1
-    }};
-    '''
-
-
-    output += "\nendpackage\n"
-
-    with open(args.output, "w") as file:
-        file.writelines(output)
-    # print(output)
+if __name__ == "__main__":
+    main()
