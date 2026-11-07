@@ -1,0 +1,56 @@
+#ifndef	_REGMAP_H
+#define	_REGMAP_H
+
+#define REGMAP_BASE 0x41840000
+#define REGMAP_SIZE 0x1000
+
+#define REGMAP_INF          REGMAP_BASE + 0x0
+#define REGMAP_CTRL         REGMAP_BASE + 0x4
+#define REGMAP_STATUS       REGMAP_BASE + 0x8
+#define REGMAP_AVAIL_CORES  REGMAP_BASE + 0xC
+#define REGMAP_ARG00        REGMAP_BASE + 0x10
+#define REGMAP_ARG01        REGMAP_BASE + 0x14
+#define REGMAP_ARG02        REGMAP_BASE + 0x18
+#define REGMAP_ARG03        REGMAP_BASE + 0x1C
+#define REGMAP_ARG04        REGMAP_BASE + 0x20
+#define REGMAP_ARG05        REGMAP_BASE + 0x24
+#define REGMAP_ARG06        REGMAP_BASE + 0x28
+#define REGMAP_ARG07        REGMAP_BASE + 0x2C
+#define REGMAP_ARG08        REGMAP_BASE + 0x30
+#define REGMAP_ARG09        REGMAP_BASE + 0x34
+#define REGMAP_ARG0A        REGMAP_BASE + 0x38
+#define REGMAP_ARG0B        REGMAP_BASE + 0x3C
+#define REGMAP_ARG0C        REGMAP_BASE + 0x40
+#define REGMAP_ARG0D        REGMAP_BASE + 0x44
+#define REGMAP_ARG0E        REGMAP_BASE + 0x48
+#define REGMAP_ARG0F        REGMAP_BASE + 0x4C
+#define REGMAP_ARG10        REGMAP_BASE + 0x50
+#define REGMAP_ARG11        REGMAP_BASE + 0x54
+#define REGMAP_ARG12        REGMAP_BASE + 0x58
+#define REGMAP_ARG13        REGMAP_BASE + 0x5C
+#define REGMAP_ARG14        REGMAP_BASE + 0x60
+#define REGMAP_ARG15        REGMAP_BASE + 0x64
+#define REGMAP_ARG16        REGMAP_BASE + 0x68
+#define REGMAP_ARG17        REGMAP_BASE + 0x6C
+#define REGMAP_ARG18        REGMAP_BASE + 0x70
+#define REGMAP_ARG19        REGMAP_BASE + 0x74
+#define REGMAP_ARG1A        REGMAP_BASE + 0x78
+#define REGMAP_ARG1B        REGMAP_BASE + 0x7C
+#define REGMAP_ARG1C        REGMAP_BASE + 0x80
+#define REGMAP_ARG1D        REGMAP_BASE + 0x84
+#define REGMAP_ARG1E        REGMAP_BASE + 0x88
+#define REGMAP_ARG1F        REGMAP_BASE + 0x8C
+#define REGMAP_INIT_PC      REGMAP_BASE + 0x90
+#define REGMAP_INIT_PCH     REGMAP_BASE + 0x94
+#define REGMAP_RET_ADDR     REGMAP_BASE + 0x98
+#define REGMAP_RET_ADDRH    REGMAP_BASE + 0x9C
+#define REGMAP_SIS          REGMAP_BASE + 0xA0
+#define REGMAP_SIC          REGMAP_BASE + 0xA4
+#define REGMAP_SI           REGMAP_BASE + 0xA8
+#define REGMAP_SIE          REGMAP_BASE + 0xAC
+#define REGMAP_SIM          REGMAP_BASE + 0xB0
+#define REGMAP_DDR_BASE     REGMAP_BASE + 0xB4
+
+#define FLUSH_L2_LOC        0x18
+
+#endif  /*_REGMAP_H */

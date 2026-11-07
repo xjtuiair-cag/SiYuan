@@ -1,0 +1,13 @@
+${DV_HOME}/tb/axi_lite32_bootrom.sv
+${DV_HOME}/tb/uart_sim/UART_rec.sv
+${DV_HOME}/tb/cpu_axi_mem.sv
+${DV_HOME}/tb/wb_ram/verilog/wb_ram_generic.v
+${DV_HOME}/tb/wb_ram/verilog/wb_ram.v
+${DV_HOME}/tb/sd_device/verilog/common.v
+${DV_HOME}/tb/sd_device/verilog/sd_brams.v
+${DV_HOME}/tb/sd_device/verilog/sd_link.v
+${DV_HOME}/tb/sd_device/verilog/sd_mgr.v
+${DV_HOME}/tb/sd_device/verilog/sd_phy.v
+${DV_HOME}/tb/sd_device/verilog/sd_wishbone.v
+${DV_HOME}/tb/sd_device/verilog/sd_top.v
+${DV_HOME}/tb/tb_cpu.sv

@@ -1,0 +1,50 @@
+
+Memory Configuration
+
+Name             Origin             Length             Attributes
+*default*        0x0000000000000000 0xffffffffffffffff
+
+Linker script and memory map
+
+                0x0000000041000000                . = 0x41000000
+
+.text.boot      0x0000000041000000        0xc
+ *(.text.boot)
+ .text.boot     0x0000000041000000        0xc build_src/start_s.o
+                0x0000000041000000                _start
+
+.text           0x000000004100000c        0x0
+ *(.text)
+ .text          0x000000004100000c        0x0 build_src/start_s.o
+
+.rodata
+ *(.rodata)
+
+.data           0x000000004100000c        0x0
+ *(.data)
+ .data          0x000000004100000c        0x0 build_src/start_s.o
+                0x0000000041000010                . = ALIGN (0x8)
+                0x0000000041000010                bss_begin = .
+
+.bss            0x0000000041000010        0x0
+ *(.bss*)
+ .bss           0x0000000041000010        0x0 build_src/start_s.o
+                0x0000000041000010                bss_end = .
+LOAD build_src/start_s.o
+OUTPUT(build_src/boot0.elf elf64-littleriscv)
+
+.debug_line     0x0000000000000000       0x44
+ .debug_line    0x0000000000000000       0x44 build_src/start_s.o
+
+.debug_info     0x0000000000000000       0x2e
+ .debug_info    0x0000000000000000       0x2e build_src/start_s.o
+
+.debug_abbrev   0x0000000000000000       0x14
+ .debug_abbrev  0x0000000000000000       0x14 build_src/start_s.o
+
+.debug_aranges  0x0000000000000000       0x30
+ .debug_aranges
+                0x0000000000000000       0x30 build_src/start_s.o
+
+.debug_str      0x0000000000000000       0x58
+ .debug_str     0x0000000000000000       0x58 build_src/start_s.o
