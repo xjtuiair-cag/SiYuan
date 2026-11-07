@@ -40,7 +40,7 @@ If you want to change default configuration, please make sure you have install `
 
 1. Prepare your configuration file and put it in `config/`.
 
-2. Run `make gen_src CONFIG=file_name.yaml` to generate source files. `file_name` is the name of your configuration file. 
+2. Run `make gen_src CONFIG=file_name` to generate source files. `file_name` is the config stem under `config/` (no `.yaml`), e.g. `2_cores` or `4_cores`. 
 
 `base.yaml` is the default configuration file. We suggest only change the `Core_num` in configuration file, and the core number is no more than 4 due to the limitation of the resource in FPGA.
 

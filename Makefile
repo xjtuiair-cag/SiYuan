@@ -1,214 +1,235 @@
 # Author: shenghuan liu
-# Date: 2025/01/08
-# Description: Makefile for SiYuan.
-# root path
+# Description: Top-level Makefile for SiYuan (sim + FPGA).
+#              RTL file lists live in de/vc/cpu.vc — do not hardcode sources here.
+
 mkfile_path := $(abspath $(lastword $(MAKEFILE_LIST)))
-root-dir := $(dir $(mkfile_path))
-BOARD ?= vc707
-DV_HOME = $(root-dir)/dv
-DE_HOME = $(root-dir)/de
-SIM_DIR = ./dv/simulation
-SIM_TYPE ?= riscv_test
-TEST ?= rv64ui-p-add
-TEST_REGRESSION = rv64ui
-GUI ?= 0
-CONFIG ?= base.yaml
-CONFIG_FILE = $(addprefix $(root-dir)config/, $(CONFIG))
-SCRIPTS_DIR = $(root-dir)config/scripts
-DTS_OUT_PATH = $(root-dir)de/ip/bootrom_fpga/sy.dts
-SOC_OUT_PATH = $(root-dir)de/inc/sy_soc_pkg.sv
+ROOT_DIR    := $(dir $(mkfile_path))
 
-# setting additional xilinx board parameters for the selected board
-ifeq ($(BOARD), genesys2)
-	XILINX_PART              := xc7k325tffg900-2
-	XILINX_BOARD             := digilentinc.com:genesys2:part0:1.1
-	CLK_PERIOD_NS            := 20
-else ifeq ($(BOARD), vc707)
-	XILINX_PART              := xc7vx485tffg1761-2
-	XILINX_BOARD             := xilinx.com:vc707:part0:1.3
-	CLK_PERIOD_NS            := 20
+# -----------------------------------------------------------------------------
+# Paths
+# -----------------------------------------------------------------------------
+DE_HOME     := $(ROOT_DIR)de
+DV_HOME     := $(ROOT_DIR)dv
+FPGA_DIR    := $(ROOT_DIR)fpga
+SIM_DIR     := $(DV_HOME)/simulation
+SCRIPTS_DIR := $(ROOT_DIR)config/scripts
+CPU_VC      := $(DE_HOME)/vc/cpu.vc
+EXPAND_VC   := $(SCRIPTS_DIR)/expand_vc.py
+
+# -----------------------------------------------------------------------------
+# User knobs
+# -----------------------------------------------------------------------------
+BOARD        ?= vc707
+# BOOTROM_TYPE: normal | lowrisc
+BOOTROM_TYPE ?= normal
+# CONFIG is the yaml stem under config/, e.g. 2_cores or 4_cores (no .yaml)
+CONFIG       ?= 2_cores
+TEST         ?= core0_rv64ui-p-add
+SEED         ?= 0
+BOOTMODE     ?= 1
+TEST_LIST    ?= all_test_list.txt
+
+CONFIG_NAME  := $(patsubst %.yaml,%,$(notdir $(CONFIG)))
+CONFIG_FILE  := $(ROOT_DIR)config/$(CONFIG_NAME).yaml
+SOC_OUT_PATH := $(DE_HOME)/inc/sy_soc_pkg.sv
+# normal bootrom embeds this DTS; generate it in place
+DTS_OUT_PATH := $(FPGA_DIR)/bootrom/bootrom_normal/sy.dts
+
+# -----------------------------------------------------------------------------
+# Board parameters
+# -----------------------------------------------------------------------------
+ifeq ($(BOARD),genesys2)
+	XILINX_PART   := xc7k325tffg900-2
+	XILINX_BOARD  := digilentinc.com:genesys2:part0:1.1
+	CLK_PERIOD_NS := 20
+	FPGA_TOP      := cpu_genesys2_top
+	BOARD_DEFINES := GENESYS2 PLATFORM_XILINX
+else ifeq ($(BOARD),vc707)
+	XILINX_PART   := xc7vx485tffg1761-2
+	XILINX_BOARD  := xilinx.com:vc707:part0:1.3
+	CLK_PERIOD_NS := 20
+	FPGA_TOP      := cpu_vc707_top
+	BOARD_DEFINES := VC707 PLATFORM_XILINX
 else
-$(error Unknown board - please specify a supported FPGA board)
+$(error Unknown BOARD=$(BOARD). Supported: vc707, genesys2)
 endif
 
-# Package files -> compile first
-sy_pkg := 	de/inc/axi_pkg.sv            \
-		   	de/inc/dbg_pkg.sv            \
-		   	de/inc/dm_pkg.sv             \
-		   	de/inc/sy_pkg.sv             \
-		   	de/inc/tl_pkg.sv             \
-		   	de/inc/fft_pkg.sv            \
-		   	de/inc/sy_axi.sv             \
-		   	de/inc/sy_soc_pkg.sv         \
-		   	de/inc/reg_intf.sv           \
-		   	de/inc/reg_intf_pkg.sv       \
-		   	de/ip/fpu/src/fpnew_pkg.sv   \
-		   	de/ip/fpu/src/fpu_div_sqrt_mvp/hdl/defs_div_sqrt_mvp.sv
-sy_pkg := $(addprefix $(root-dir), $(sy_pkg))
-
-# utility modules
-util := de/utils/rr_arb_tree.sv                \
-		de/utils/oneHot2Int.sv                 \
-		de/utils/lzc.sv                        \
-		de/utils/stream_arbiter_flushable.sv   \
-		de/utils/stream_arbiter.sv             \
-		de/utils/spill_register.sv             \
-		de/utils/sync.sv                       \
-		de/utils/pulp_clock_gating.sv          \
-		de/utils/sync_wedge.sv                 \
-		de/utils/apb_to_reg.sv                 \
-		de/utils/fan_ctrl.sv                   \
-		de/utils/rstgen_bypass.sv              \
-		de/utils/rstgen.sv                     \
-		de/utils/cdc_2phase.sv                 \
-		de/utils/pulp_clock_mux2.sv            \
-		de/utils/fifo_v2.sv                    \
-		de/utils/fifo_v3.sv                              					
-util := $(addprefix $(root-dir), $(util))
-
-ip := 	$(filter-out de/ip/fpu/src/fpnew_pkg.sv, $(wildcard de/ip/fpu/src/*.sv))   			\
-		$(filter-out de/ip/fpu/src/fpu_div_sqrt_mvp/hdl/defs_div_sqrt_mvp.sv,    				\
-		$(wildcard de/ip/fpu/src/fpu_div_sqrt_mvp/hdl/*.sv))                					\
-		$(wildcard de/ip/sram/*.sv)                                            					\
-		$(wildcard de/ip/ethernet/*.sv)                                            				\
-		$(wildcard de/ip/axi_spi_master/*.sv)                                            		\
-		$(wildcard de/ip/algebra/*.sv)                                            				\
-		$(filter-out de/ip/apb_uart/src/reg_uart_wrap.sv,$(wildcard de/ip/apb_uart/src/*.sv))	\
-		de/ip/rv_plic/rtl/plic_regmap.sv                                            			\
-		de/ip/rv_plic/rtl/rv_plic_gateway.sv                                            		\
-		de/ip/rv_plic/rtl/rv_plic_target.sv                                            			\
-		de/ip/rv_plic/rtl/plic_top.sv
-                                	
-ip := $(addprefix $(root-dir), $(ip))
-
-src :=  $(wildcard de/src/sy/sy_ppl/sy_ppl_fet/sy_ppl_br_pred/*.sv)              		\
-		$(wildcard de/src/sy/sy_ppl/sy_ppl_fet/*.sv)              						\
-		$(wildcard de/src/sy/sy_ppl/*.sv)              									\
-		$(wildcard de/src/sy/sy_tl/tl_buffer/*.sv)              						\
-		$(wildcard de/src/sy/sy_tl/tl_xbar/*.sv)              							\
-		$(wildcard de/src/sy/sy_tl/tl_connect/*.sv)              						\
-		$(wildcard de/src/sy/sy_tl/tl2amba/*.sv)              							\
-		$(wildcard de/src/sy/sy_tl/*.sv)              									\
-		$(wildcard de/src/sy/sy_cache/sy_dcache/*.sv)              						\
-		$(wildcard de/src/sy/sy_cache/sy_L2_cache/*.sv)              					\
-		$(wildcard de/src/sy/sy_cache/*.sv)              								\
-		$(wildcard de/src/sy/sy_clint/*.sv)              								\
-		$(wildcard de/src/sy/sy_npu/*.sv)              									\
-		$(wildcard de/src/sy/sy_plic/*.sv)              								\
-		$(wildcard de/src/sy/sy_mmu/*.sv)              									\
-		$(wildcard de/src/sy/sy_dma/*.sv)              									\
-		$(wildcard de/src/sy/sy_fft/*.sv)              									\
-		$(wildcard de/src/sy/sy_debug/riscv_dbg/debug_rom/*.sv)              			\
-		$(wildcard de/src/sy/sy_debug/riscv_dbg/src/*.sv)              					\
-		$(wildcard de/src/sy/sy_debug/*.sv)              								\
-		$(wildcard de/src/sy/sy_regmap/*.sv)              								\
-		$(wildcard de/src/sy/sy_spi/*.sv)              									\
-		$(wildcard de/src/sy/sy_gpio/*.sv)              								\
-		$(wildcard de/src/sy/sy_uart/*.sv)              								\
-		$(wildcard de/src/sy/*.sv)              												
-src := $(addprefix $(root-dir), $(src))
-
-fpga_src := $(wildcard de/ip/bootrom_fpga/*.sv) 	
-ifeq ($(BOARD), genesys2)
-	fpga_src += de/src/sy_soc_genesys2.sv
-else ifeq ($(BOARD), vc707)
-	fpga_src += de/src/sy_soc_vc707.sv
+# -----------------------------------------------------------------------------
+# Bootrom selection
+# -----------------------------------------------------------------------------
+ifeq ($(BOOTROM_TYPE),normal)
+	BOOTROM_DIR     := $(FPGA_DIR)/bootrom/bootrom_normal
+	BOOTROM_SV      := $(BOOTROM_DIR)/bootrom.sv
+	BOOTROM_DEFINES := NORMAL
+else ifeq ($(BOOTROM_TYPE),lowrisc)
+	BOOTROM_DIR     := $(FPGA_DIR)/bootrom/bootrom_lowrisc
+	BOOTROM_SV      := $(BOOTROM_DIR)/bootrom_lowrisc.sv
+	BOOTROM_DEFINES := LOWRISC
 else
-$(error Unknown board - please specify a supported FPGA board)
-endif
-fpga_src := $(addprefix $(root-dir), $(fpga_src))
-
-sim_src := 	$(wildcard de/ip/bootrom_sim/*.sv)	\
-			$(wildcard de/ip/sd_device/rtl/verilog/*.v)	\
-			$(wildcard de/ip/wb_ram/rtl/verilog/*.v)	\
-			de/ip/sram/sim/sdp_sram_with_strob.sv \
-			de/ip/uart_sim/UART_rec.sv \
-			de/src/sy_soc_sim.sv	
-
-ifeq ($(SIM_TYPE),benos) 
-	sim_src += dv/tb/axi_mem_benos.sv \
-				dv/tb/tb_sy_benos.sv 
-else ifeq ($(SIM_TYPE),linux)
-	sim_src += dv/tb/axi_mem_linux.sv \
-				dv/tb/tb_sy_linux.sv 
-else ifeq ($(SIM_TYPE),dma)
-	sim_src += dv/tb/axi_mem_dma.sv \
-				dv/tb/tb_sy_dma.sv 
-else ifeq ($(SIM_TYPE),spi)
-	sim_src += dv/tb/axi_mem_spi.sv \
-				dv/tb/tb_sy_spi.sv 
-else ifeq ($(SIM_TYPE),fft)
-	sim_src += dv/tb/axi_mem_fft.sv \
-				dv/tb/tb_sy_fft.sv 
-else ifeq ($(SIM_TYPE),debug)
-	sim_src += dv/tb/axi_mem_benos.sv \
-				dv/tb/SimJTAG.sv \
-			    dv/tb/tb_sy_debug.sv 
-else ifeq ($(SIM_TYPE),riscv_test)# TODO
-	sim_src += dv/tb/axi_mem_riscv_test.sv \
-				dv/tb/tb_sy_riscv_test.sv 
-else 
-$(error Unknown sim type - please specify a supported sim type)
+$(error Unknown BOOTROM_TYPE=$(BOOTROM_TYPE). Supported: normal, lowrisc)
 endif
 
-sim_src := $(addprefix $(root-dir), $(sim_src))
+VIVADO_DEFINES := $(BOARD_DEFINES) $(BOOTROM_DEFINES)
 
-ifeq ($(GUI),1) 
-	SIM_PARAM += -gui
-endif
+FPGA_TOP_SV     := $(FPGA_DIR)/fpga_src/$(FPGA_TOP).sv
+CPU_BOOTROM_SV  := $(FPGA_DIR)/fpga_src/cpu_bootrom.sv
 
-gen_src : 
-	@echo "[Generate Source files] Generate sources"
-	cd ${SCRIPTS_DIR} && make all CONFIG_FILE=$(CONFIG_FILE) DTS_OUT_PATH=$(DTS_OUT_PATH) SOC_OUT_PATH=$(SOC_OUT_PATH) TYPE=fpga
-	@echo "[Generate Source files Done]" 
+# fpga/build/<board>/<bootrom>/<config>/  — one Vivado project per combination.
+# fpga/build/<board>/ip/                  — Xilinx IP compiled for that board.
+FPGA_BUILD_DIR  := $(FPGA_DIR)/build/$(BOARD)/$(BOOTROM_TYPE)/$(CONFIG_NAME)
+FPGA_IP_DIR     := $(FPGA_DIR)/build/$(BOARD)/ip
+ADD_SOURCES_TCL := $(FPGA_BUILD_DIR)/add_sources.tcl
 
+# Extra FPGA-only RTL not covered by cpu.vc
+FPGA_EXTRA_SRCS := \
+	$(FPGA_TOP_SV) \
+	$(CPU_BOOTROM_SV) \
+	$(BOOTROM_SV)
 
-fpga: $(sy_pkg) $(ip) $(util) $(src) $(fpga_src) 
-	@echo "[FPGA] Generate sources"
-	@echo read_verilog -sv {$(sy_pkg)}   > fpga/xilinx_scripts/add_sources.tcl
-	@echo read_verilog -sv {$(ip)} 		 >> fpga/xilinx_scripts/add_sources.tcl
-	@echo read_verilog -sv {$(util)}     >> fpga/xilinx_scripts/add_sources.tcl
-	@echo read_verilog -sv {$(src)} 	 >> fpga/xilinx_scripts/add_sources.tcl
-	@echo read_verilog -sv {$(fpga_src)} >> fpga/xilinx_scripts/add_sources.tcl
-	@echo "[FPGA] Generate Bitstream"
-	$(MAKE) -C fpga BOARD=$(BOARD) XILINX_PART=$(XILINX_PART) XILINX_BOARD=$(XILINX_BOARD) CLK_PERIOD_NS="20"
+export DE_HOME DV_HOME BOARD XILINX_PART XILINX_BOARD CLK_PERIOD_NS FPGA_TOP
+export VIVADO_DEFINES
 
-fpga_gui: $(sy_pkg) $(ip) $(util) $(src) $(fpga_src) 
-	@echo "[FPGA] Generate sources"
-	@echo read_verilog -sv {$(sy_pkg)}   > fpga/xilinx_scripts/add_sources.tcl
-	@echo read_verilog -sv {$(ip)} 		 >> fpga/xilinx_scripts/add_sources.tcl
-	@echo read_verilog -sv {$(util)}     >> fpga/xilinx_scripts/add_sources.tcl
-	@echo read_verilog -sv {$(src)} 	 >> fpga/xilinx_scripts/add_sources.tcl
-	@echo read_verilog -sv {$(fpga_src)} >> fpga/xilinx_scripts/add_sources.tcl
-	@echo "[FPGA] Generate Bitstream"
-	$(MAKE) -C fpga prj_gui BOARD=$(BOARD) XILINX_PART=$(XILINX_PART) XILINX_BOARD=$(XILINX_BOARD) CLK_PERIOD_NS="20"
+# =============================================================================
+# Help
+# =============================================================================
+.PHONY: help
+help:
+	@echo "SiYuan top-level targets"
+	@echo ""
+	@echo "  Config:"
+	@echo "    make gen_src [CONFIG=2_cores|4_cores] [BOOTROM_TYPE=normal|lowrisc]"
+	@echo ""
+	@echo "  Simulation (runs under dv/simulation):"
+	@echo "    make sim                                      # compile RTL (cpu_sim)"
+	@echo "    make run     TEST=<name> [BOOTMODE=1] [SEED=0]# batch run"
+	@echo "    make run_gui TEST=<name> [BOOTMODE=1] [SEED=0]# GUI run"
+	@echo "    make regression [TEST_LIST=all_test_list.txt] # regression"
+	@echo ""
+	@echo "  Bootrom:"
+	@echo "    make bootrom [BOOTROM_TYPE=normal|lowrisc]"
+	@echo ""
+	@echo "  FPGA:"
+	@echo "    make fpga     [BOARD=vc707|genesys2] [BOOTROM_TYPE=normal|lowrisc] [CONFIG=2_cores]"
+	@echo "    make fpga_gui [BOARD=vc707|genesys2] [BOOTROM_TYPE=normal|lowrisc] [CONFIG=2_cores]"
+	@echo "    project: fpga/build/<BOARD>/<BOOTROM_TYPE>/<CONFIG>/"
+	@echo "    IP:      fpga/build/<BOARD>/ip/   (copied from xilinx_ip, then compiled)"
+	@echo ""
+	@echo "  Clean:"
+	@echo "    make clean"
+	@echo ""
+	@echo "RTL filelist: $(CPU_VC)"
 
-prepare_sim_src: 
-	@echo "[Build src file]" 
-	cd ${SCRIPTS_DIR} && make all CONFIG_FILE=$(CONFIG_FILE) DTS_OUT_PATH=$(DTS_OUT_PATH) SOC_OUT_PATH=$(SOC_OUT_PATH) TYPE=sim
-	cd $(DV_HOME)/tests/riscv-tests && make all 
+# =============================================================================
+# Config generation (sy_soc_pkg + dts). Bootrom build is separate.
+# =============================================================================
+.PHONY: gen_src dts soc_pkg
+gen_src: dts soc_pkg
 
-build_sim_src: $(ip) $(sy_pkg) $(util) $(src) $(sim_src)
-	@echo "[Prepare Source files]"
-	@echo $(sy_pkg)         >  dv/vc/source_list.vc     
-	@echo $(ip)        		>> dv/vc/source_list.vc     
-	@echo $(util)           >> dv/vc/source_list.vc       
-	@echo $(src) 	        >> dv/vc/source_list.vc              
-	@echo $(sim_src)        >> dv/vc/source_list.vc          
-	cd ${SIM_DIR} && make sy_sim DV_HOME="$(DV_HOME)" DE_HOME="$(DE_HOME)"
+dts:
+	@echo "[GEN] Device tree -> $(DTS_OUT_PATH)"
+	@mkdir -p $(dir $(DTS_OUT_PATH))
+	cd $(SCRIPTS_DIR) && python gen_dts.py -f $(CONFIG_FILE) -o $(DTS_OUT_PATH)
 
-run_sim_test:
-	cd ${SIM_DIR} && make run_$(SIM_TYPE) TEST="$(TEST)" DV_HOME="$(DV_HOME)" DE_HOME="$(DE_HOME)" GUI="$(SIM_PARAM)"
+soc_pkg:
+	@echo "[GEN] SoC package -> $(SOC_OUT_PATH)"
+	cd $(SCRIPTS_DIR) && python gen_soc_pkg.py -f $(CONFIG_FILE) -o $(SOC_OUT_PATH)
 
-# only support riscv_tests and non-gui mode
-run_sim_regression:
-	cd ${SIM_DIR} && make run_$(SIM_TYPE)_regression TEST="$(TEST_REGRESSION)" DV_HOME="$(DV_HOME)" DE_HOME="$(DE_HOME)" 
+# =============================================================================
+# Simulation — delegate to dv/simulation
+# =============================================================================
+.PHONY: sim cpu_sim run run_gui regression
 
-.PHONY: fpga
+sim cpu_sim:
+	@echo "[SIM] Compile in $(SIM_DIR)"
+	cd $(SIM_DIR) && . ./setup_env.sh && $(MAKE) cpu_sim DE_HOME="$(DE_HOME)" DV_HOME="$(DV_HOME)"
 
-clean: 
-	cd de/ip/bootrom_fpga && make clean
-	cd de/ip/bootrom_sim && make clean
-	cd dv/simulation && make clean
-	cd dv/tests && make clean
-	cd fpga && make clean
+run:
+	@echo "[SIM] Run TEST=$(TEST) BOOTMODE=$(BOOTMODE) SEED=$(SEED)"
+	cd $(SIM_DIR) && . ./setup_env.sh && BOOTMODE="$(BOOTMODE)" $(MAKE) run \
+		TEST="$(TEST)" SEED="$(SEED)" DE_HOME="$(DE_HOME)" DV_HOME="$(DV_HOME)"
+
+run_gui:
+	@echo "[SIM] GUI run TEST=$(TEST) BOOTMODE=$(BOOTMODE) SEED=$(SEED)"
+	cd $(SIM_DIR) && . ./setup_env.sh && BOOTMODE="$(BOOTMODE)" $(MAKE) run_gui \
+		TEST="$(TEST)" SEED="$(SEED)" DE_HOME="$(DE_HOME)" DV_HOME="$(DV_HOME)"
+
+regression:
+	@echo "[SIM] Regression ($(TEST_LIST))"
+	cd $(SIM_DIR) && . ./setup_env.sh && python3 run_regression.py $(TEST_LIST)
+
+# =============================================================================
+# Bootrom (FPGA content ROM)
+# =============================================================================
+.PHONY: bootrom bootrom_normal bootrom_lowrisc
+
+bootrom: bootrom_$(BOOTROM_TYPE)
+
+bootrom_normal:
+	@echo "[BOOTROM] Build normal bootrom"
+	$(MAKE) -C $(FPGA_DIR)/bootrom/bootrom_normal all
+
+bootrom_lowrisc:
+	@echo "[BOOTROM] Build lowrisc boot0 + etherboot"
+	$(MAKE) -C $(FPGA_DIR)/bootrom/bootrom_lowrisc/boot0 all
+	$(MAKE) -C $(FPGA_DIR)/bootrom/bootrom_lowrisc all
+
+# =============================================================================
+# FPGA — expand cpu.vc into Vivado add_sources.tcl, then build
+# =============================================================================
+.PHONY: fpga_sources fpga fpga_gui
+
+fpga_sources: bootrom
+	@echo "[FPGA] Generate $(ADD_SOURCES_TCL) from $(CPU_VC)"
+	@mkdir -p $(FPGA_BUILD_DIR)
+	@test -f $(CPU_VC) || (echo "missing $(CPU_VC)" && exit 1)
+	@test -f $(BOOTROM_SV) || (echo "missing bootrom SV: $(BOOTROM_SV)" && exit 1)
+	DE_HOME="$(DE_HOME)" python3 $(EXPAND_VC) $(CPU_VC) --tcl \
+		$(foreach f,$(FPGA_EXTRA_SRCS),--extra $(f)) \
+		-o $(ADD_SOURCES_TCL)
+	@echo "[FPGA] Sources ready (BOOTROM_TYPE=$(BOOTROM_TYPE), TOP=$(FPGA_TOP), CONFIG=$(CONFIG_NAME))"
+
+fpga: fpga_sources
+	@echo "[FPGA] Build bitstream BOARD=$(BOARD) BOOTROM_TYPE=$(BOOTROM_TYPE) CONFIG=$(CONFIG_NAME)"
+	@echo "[FPGA] Project: $(FPGA_BUILD_DIR)"
+	@echo "[FPGA] IP:      $(FPGA_IP_DIR)"
+	$(MAKE) -C $(FPGA_DIR) \
+		BOARD=$(BOARD) \
+		BOOTROM_TYPE=$(BOOTROM_TYPE) \
+		CONFIG_NAME=$(CONFIG_NAME) \
+		ADD_SOURCES_TCL=$(ADD_SOURCES_TCL) \
+		XILINX_PART=$(XILINX_PART) \
+		XILINX_BOARD=$(XILINX_BOARD) \
+		CLK_PERIOD_NS=$(CLK_PERIOD_NS) \
+		FPGA_TOP=$(FPGA_TOP) \
+		VIVADO_DEFINES="$(VIVADO_DEFINES)"
+
+fpga_gui: fpga_sources
+	@echo "[FPGA] Open Vivado GUI BOARD=$(BOARD) BOOTROM_TYPE=$(BOOTROM_TYPE) CONFIG=$(CONFIG_NAME)"
+	@echo "[FPGA] Project: $(FPGA_BUILD_DIR)"
+	@echo "[FPGA] IP:      $(FPGA_IP_DIR)"
+	$(MAKE) -C $(FPGA_DIR) prj_gui \
+		BOARD=$(BOARD) \
+		BOOTROM_TYPE=$(BOOTROM_TYPE) \
+		CONFIG_NAME=$(CONFIG_NAME) \
+		ADD_SOURCES_TCL=$(ADD_SOURCES_TCL) \
+		XILINX_PART=$(XILINX_PART) \
+		XILINX_BOARD=$(XILINX_BOARD) \
+		CLK_PERIOD_NS=$(CLK_PERIOD_NS) \
+		FPGA_TOP=$(FPGA_TOP) \
+		VIVADO_DEFINES="$(VIVADO_DEFINES)"
+
+# =============================================================================
+# Clean
+# =============================================================================
+.PHONY: clean clean_test
+clean:
+	-$(MAKE) -C $(FPGA_DIR)/bootrom/bootrom_normal clean
+	-$(MAKE) -C $(FPGA_DIR)/bootrom/bootrom_lowrisc/boot0 clean
+	-$(MAKE) -C $(FPGA_DIR)/bootrom/bootrom_lowrisc clean
+	-$(MAKE) -C $(SIM_DIR) clean DE_HOME="$(DE_HOME)" DV_HOME="$(DV_HOME)"
+	-$(MAKE) -C $(FPGA_DIR) clean
+	@rm -f $(ADD_SOURCES_TCL)
+	@rm -f $(FPGA_DIR)/xilinx_scripts/add_sources.tcl
+
+clean_test:
+	-$(MAKE) -C $(SIM_DIR) clean_test DE_HOME="$(DE_HOME)" DV_HOME="$(DV_HOME)"
