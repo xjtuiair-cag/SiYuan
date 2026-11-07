@@ -47,8 +47,6 @@ module cpu
     import sy_pkg::*;
     import sy_soc_pkg::*;
 # (
-    // cpu core number
-    parameter CPU_NUM = 4,                  // cpu core number
     // Bus configuration
     parameter CFGBUS_AWTH = 16,             // configure bus address width
     parameter CFGBUS_DWTH = 32,             // configure bus data width

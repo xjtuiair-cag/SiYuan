@@ -13,3 +13,6 @@ ${DE_HOME}/utils/pulp_clock_mux2.sv
 ${DE_HOME}/utils/cdc_2phase.sv
 ${DE_HOME}/utils/fifo_v2.sv
 ${DE_HOME}/utils/spill_register.sv
+${DE_HOME}/utils/oneHot2Int.sv
+${DE_HOME}/utils/rstgen_bypass.sv
+${DE_HOME}/utils/rstgen.sv

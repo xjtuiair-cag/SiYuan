@@ -28,7 +28,6 @@
 
 module sy
     import sy_pkg::*;
-    import sy_soc_pkg::*;
 # (
     parameter integer IRQ_NUM = 1    
 )(
@@ -747,7 +746,7 @@ module sy
 // RegMap (ctrl bus)
 //======================================================================================================================
     sy_regmap #(
-        .BASE_ADDR  (REGMAPBase),
+        .BASE_ADDR  (REGMAP_START),
         .ADDR_WIDTH (32),
         .DATA_WIDTH (32),
         .IRQ_NUM    (IRQ_NUM),
@@ -976,7 +975,7 @@ module sy
 // DMA (DMA bus)
 //======================================================================================================================
     sy_dma # (
-        .BASE_ADDR  (DMABase),
+        .BASE_ADDR  (DMA_START),
         .ADDR_WIDTH (32),
         .DATA_WIDTH (32),
         .SOURCE     (DMA_SOURCE_ID) 
