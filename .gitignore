@@ -1,3 +1,4 @@
 ##ignore this file##
-dv/simulation/works
-fpga/build/*
+works
+build
+__pycache__
