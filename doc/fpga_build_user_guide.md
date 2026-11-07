@@ -37,7 +37,20 @@ If you are familiar with vivado GUI, you can run the following command to create
 ```sh
 make fpga_gui
 ```
-or you can run the following command to generate bitstream directly. When the process done, you will find bitstream `sy_soc_fpga.bit` and `sy_soc_fpga.mcs` in `fpga/build/`
+or you can run the following command to generate bitstream directly. Each board, bootrom and config gets its own directory under `fpga/build/`:
+
+```
+fpga/build/<BOARD>/<BOOTROM_TYPE>/<CONFIG>/
+```
+
+The defaults (`BOARD=vc707`, `BOOTROM_TYPE=normal`, `CONFIG=2_cores`) write `cpu_vc707_top.bit` and `cpu_vc707_top.mcs` to `fpga/build/vc707/normal/2_cores/`.
+
+Xilinx IP is copied from `fpga/xilinx_ip/` into `fpga/build/<BOARD>/ip/` and compiled there. Generated IP files (`.gen`, `.srcs`, `.runs`) stay under that board IP directory, so:
+
+- VC707 and Genesys2 do not overwrite each other's IP
+- different `BOOTROM_TYPE` / `CONFIG` share the same board IP, but each keeps its own Vivado project under `fpga/build/<BOARD>/<BOOTROM_TYPE>/<CONFIG>/`
+
 ```sh
 make fpga
+make fpga BOARD=genesys2 BOOTROM_TYPE=lowrisc CONFIG=4_cores
 ```
