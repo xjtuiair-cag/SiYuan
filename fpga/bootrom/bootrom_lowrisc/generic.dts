@@ -1,0 +1,82 @@
+/dts-v1/;
+
+/ {
+	#address-cells = <1>;
+	#size-cells = <1>;
+	compatible = "cag,sy-bare-dev";
+	model = "CAG ,CPU-lowRISC";
+    chosen {
+        stdout-path = "/soc/uart@41000000:115200";
+    };
+	L13: cpus {
+		#address-cells = <1>;
+		#size-cells = <0>;
+        timebase-frequency = <32768>; // 32.768 K
+
+		L5: cpu@0 {
+			clock-frequency = <50000000>; // 50 MHz
+			device_type = "cpu";
+			next-level-cache = <&L7>;
+			reg = <0>;
+			status = "okay";
+			compatible = "cag ,CPU", "riscv";
+			riscv,isa = "rv64imafdc";
+			mmu-type = "riscv,sv39";
+			tlb-split;
+			L3: interrupt-controller {
+				#interrupt-cells = <1>;
+				interrupt-controller;
+				compatible = "riscv,cpu-intc";
+			};
+		};
+	};
+	L7: memory@80000000 {
+		device_type = "memory";
+		reg = <0x80000000 0x40000000>;
+	};
+	L12: soc {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		compatible = "cag ,CPU-lowRISC-BOARD", "simple-bus";
+		ranges;
+		L1: clint@2000000 {
+			compatible = "riscv,clint0";
+			interrupts-extended = <&L3 3 &L3 7>;
+			reg = <0x2000000 0x10000>;
+			reg-names = "control";
+		};
+		L10: error-device@3000 {
+			compatible = "sifive,error0";
+			reg = <0x3000 0x1000>;
+			reg-names = "mem";
+		};
+		L0: interrupt-controller@c000000 {
+			#interrupt-cells = <1>;
+			compatible = "riscv,plic0";
+			interrupt-controller;
+			interrupts-extended = <&L3 11 &L3 9>;
+			reg = <0xc000000 0x4000000>;
+			reg-names = "control";
+			riscv,max-priority = <7>;
+			riscv,ndev = <5>;
+		};
+        L8: uart@41810000 {
+		  	#address-cells = <1>;
+		  	#size-cells = <1>;
+                compatible = "ns16750";
+                reg = <0x41810000 0x1000>;
+                clock-frequency = <50000000>;
+                current-speed = <115200>;
+                interrupt-parent = <&L0>;
+                interrupts = <1>;
+                reg-shift = <2>; // regs are spaced on 32 bit boundary
+                reg-io-width = <4>; // only 32-bit access are supported
+		};
+        sd: lowrisc-pitonsd@41850000 {
+          	reg = <0x41850000 0x10000>;
+          	interrupt-parent = <&L0>;
+          	interrupts = <2>;
+          	compatible = "lowrisc-pitonsd";
+        };
+	};
+};

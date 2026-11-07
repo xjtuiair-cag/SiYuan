@@ -1,0 +1,15 @@
+venv
+*.elf
+*.o
+*.img
+*.bin
+*.dis
+*.mem
+*.s
+cnvmem
+!cnvmem.v
+mapfile
+*.dtb
+*.sv
+*.vlog
+bootrom_lowrisc.sv

@@ -1,0 +1,119 @@
+/dts-v1/;
+/ {
+    #address-cells = <2>;
+    #size-cells = <2>;
+    compatible = "cag,sy-bare-dev";
+    model = "cag,sy-bare";
+    chosen {
+      stdout-path = "/soc/uart@41810000:115200";
+    };
+
+    cpus {
+        #address-cells = <1>;
+        #size-cells = <0>;
+        timebase-frequency = <32768>; // 32.768KHz
+               
+        cpu0: cpu@0 {
+          clock-frequency = <50000000>; // 50 MHz
+          device_type = "cpu";
+          reg = <0>;
+          status = "okay";
+          compatible = "cag, sy", "riscv";
+          riscv,isa = "rv64imafdc";
+          mmu-type = "riscv,sv39";
+          tlb-split;
+          // HLIC - hart local interrupt controller
+          CPU0_intc: interrupt-controller {
+            #interrupt-cells = <1>;
+            interrupt-controller;
+            compatible = "riscv,cpu-intc";
+          };
+        };
+           
+        cpu1: cpu@1 {
+          clock-frequency = <50000000>; // 50 MHz
+          device_type = "cpu";
+          reg = <1>;
+          status = "okay";
+          compatible = "cag, sy", "riscv";
+          riscv,isa = "rv64imafdc";
+          mmu-type = "riscv,sv39";
+          tlb-split;
+          // HLIC - hart local interrupt controller
+          CPU1_intc: interrupt-controller {
+            #interrupt-cells = <1>;
+            interrupt-controller;
+            compatible = "riscv,cpu-intc";
+          };
+        };
+    };
+           
+    memory@80000000 {
+      device_type = "memory";
+      reg = <0x0 0x80000000 0x0 0x80000000>;
+    };
+    
+    L26: soc {
+        #address-cells = <2>;
+        #size-cells = <2>;
+        compatible = "cag,sy-bare-soc", "simple-bus";
+        ranges;
+    
+        clint@2000000 {
+          compatible = "riscv,clint0";
+          interrupts-extended = <&CPU0_intc 3 &CPU0_intc 7 &CPU1_intc 3 &CPU1_intc 7>;
+          reg = <0x0 0x2000000 0x0 0xc0000>;
+          reg-names = "control";
+        };
+    
+        PLIC0: interrupt-controller@c000000 {
+          #address-cells = <0>;
+          #interrupt-cells = <1>;
+          compatible = "riscv,plic0";
+          interrupt-controller;
+          interrupts-extended = <&CPU0_intc 11 &CPU0_intc 9 &CPU1_intc 11 &CPU1_intc 9>;
+          reg = <0x0 0xc000000 0x0 0x4000000>;
+          riscv,max-priority = <7>;
+          riscv,ndev = <3>;
+        };
+    
+        debug-controller@0 {
+          compatible = "riscv,debug-013";
+          interrupts-extended = <&CPU0_intc 65535 &CPU1_intc 65535>;
+          reg = <0x0 0x0 0x0 0x1000>;
+          reg-names = "control";
+        };
+    
+        uart@41810000 {
+          compatible = "ns16750";
+          reg = <0x0 0x41810000 0x0 0x1000>;
+          clock-frequency = <50000000>;
+          current-speed = <115200>;
+          interrupt-parent = <&PLIC0>;
+          interrupts = <1>;
+          reg-shift = <2>; // regs are spaced on 32 bit boundary
+          reg-io-width = <4>; // only 32-bit access are supported
+        };
+
+        
+        npu_dma: cag-hipu100-dma@0{
+            compatible = "cag-hipu100-dma";
+            reg = <0x0 0x41820000 0x0 0x1000>;    // NPU DMA 
+            status = "okay";
+        };
+
+        sd@41850000 {
+            compatible = "cag,sy-sd";
+            reg = <0x0 0x41850000 0x0 0x7b0000>;
+            status = "okay";
+        };
+
+        regmap@41840000 {
+            compatible = "cag,sy-regmap";
+            reg = <0x0 0x41840000 0x0 0x10000>;
+            status = "okay";
+        };
+
+        
+   };
+};
