@@ -37,12 +37,12 @@ We have prepared the following types of test case for SiYuan: `riscv_test`, `ben
 
 Before starting the tests, please ensure that you have installed the `riscv64-unknown-elf-gcc` toolchain.
 
-Use the following command to generate the necessary test files.
+Core count / address map no longer come from YAML. Use `CORE_NUM` at compile time (see top-level `Makefile`), and refresh the bootrom DTS when needed:
 ```bash
-make prepare_sim_src CONFIG=sim.yaml
+make gen_src CORE_NUM=2
 ```
 
-This command generates the `sy_soc_pkg` header file and compiles the relevant riscv test cases.
+`CORE_NUM` is passed as `+define+SY_CORE_NUM` into `de/inc/sy_pkg.sv`.
 
 ### 3.2 Build SiYuan
 

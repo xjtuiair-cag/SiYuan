@@ -37,20 +37,25 @@ If you are familiar with vivado GUI, you can run the following command to create
 ```sh
 make fpga_gui
 ```
-or you can run the following command to generate bitstream directly. Each board, bootrom and config gets its own directory under `fpga/build/`:
+or you can run the following command to generate bitstream directly. Each
+`BOARD` + `BOOTROM_TYPE` + `CORE_NUM` combination is fully isolated under
+`fpga/build/`, so concurrent `make fpga` jobs are safe:
 
 ```
-fpga/build/<BOARD>/<BOOTROM_TYPE>/<CONFIG>/
+fpga/build/<BOARD>/<BOOTROM_TYPE>_<N>cores/
+  bootrom/     # sources copied here, then compiled (DTS embedded for normal)
+  ip/          # Xilinx IP copied from xilinx_ip/ and compiled here
+  *.bit/*.mcs  # Vivado outputs
 ```
 
-The defaults (`BOARD=vc707`, `BOOTROM_TYPE=normal`, `CONFIG=2_cores`) write `cpu_vc707_top.bit` and `cpu_vc707_top.mcs` to `fpga/build/vc707/normal/2_cores/`.
+Defaults (`BOARD=vc707`, `BOOTROM_TYPE=normal`, `CORE_NUM=2`) write bit/mcs to
+`fpga/build/vc707/normal_2cores/`.
 
-Xilinx IP is copied from `fpga/xilinx_ip/` into `fpga/build/<BOARD>/ip/` and compiled there. Generated IP files (`.gen`, `.srcs`, `.runs`) stay under that board IP directory, so:
-
-- VC707 and Genesys2 do not overwrite each other's IP
-- different `BOOTROM_TYPE` / `CONFIG` share the same board IP, but each keeps its own Vivado project under `fpga/build/<BOARD>/<BOOTROM_TYPE>/<CONFIG>/`
+Core count is selected with `CORE_NUM` (1–4). The same value is passed to Vivado
+as `SY_CORE_NUM` and used when regenerating the per-config bootrom DTS.
 
 ```sh
 make fpga
-make fpga BOARD=genesys2 BOOTROM_TYPE=lowrisc CONFIG=4_cores
+make fpga CORE_NUM=4                                    # -> .../normal_4cores/
+make fpga BOARD=genesys2 BOOTROM_TYPE=lowrisc CORE_NUM=4
 ```
