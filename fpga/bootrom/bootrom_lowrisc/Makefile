@@ -74,6 +74,7 @@ img: $(MAIN_IMG)
 # Remove all build outputs (keep sources: *.c/*.h/*.S, generic.dts, cnvmem.v, merge.py, ...).
 # Also drop stale leftovers from the old gen_rom / cnvmem flow.
 clean:
+	$(MAKE) -C boot0 clean
 	$(RM) $(OBJS_C) $(OBJS_S) $(MAIN) $(MAIN_BIN) $(MAIN_IMG) $(MAIN_DIS) \
 		$(BOARD)_$(CPU).dtb $(BOARD)_$(CPU).o $(BOARD)_$(CPU).s \
 		$(BOARD)_$(CPU).sv $(BOARD)_$(CPU).mem $(BOARD)_$(CPU).vlog \

@@ -45,7 +45,6 @@
 
 module cpu
     import sy_pkg::*;
-    import sy_soc_pkg::*;
 # (
     // Bus configuration
     parameter CFGBUS_AWTH = 16,             // configure bus address width

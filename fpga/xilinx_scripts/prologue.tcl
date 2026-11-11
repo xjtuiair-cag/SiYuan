@@ -17,7 +17,8 @@
 set project SiYuan
 
 create_project $project . -force -part $::env(XILINX_PART)
-set_property board_part $::env(XILINX_BOARD) [current_project]
+source [file join [file dirname [info script]] set_board_part.tcl]
+sy_set_board_part $::env(XILINX_BOARD)
 
 # set number of threads to 8 (maximum, unfortunately)
 set_param general.maxThreads 8

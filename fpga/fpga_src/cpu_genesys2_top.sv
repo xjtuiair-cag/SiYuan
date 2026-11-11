@@ -48,6 +48,7 @@ module cpu_genesys2_top
     output logic [ 3:0]  ddr3_dm     ,
     output logic [ 0:0]  ddr3_odt    ,
     // JTAG 
+    input  logic         trst_n,
     input  logic         tck         ,
     input  logic         tms         ,
     input  logic         tdi         ,
@@ -96,7 +97,6 @@ logic                                   sd_cmd_oe;
 logic[3:0]                              sd_dat_in;            
 logic[3:0]                              sd_dat_out;           
 logic                                   sd_dat_oe;
-logic                                   sd_reset; 
 logic                                   sd_clk_out_internal;
 logic                                   sd_clk_out;
 // DDR interface
@@ -273,8 +273,6 @@ cpu_bootrom bootrom_inst(
 //======================================================================================================================
 
 cpu #(
-    // cpu core number
-    .CPU_NUM        (2),              // cpu core number
     // Bus configuration
     .CFGBUS_AWTH    (16),             // configure bus address width
     .CFGBUS_DWTH    (32),             // configure bus data width
@@ -294,7 +292,7 @@ cpu #(
     // -------------------------------------
     // [JTAG debug]
     .jtag_tck_i     (tck),                  // JTAG test clock pad
-    .jtag_trst_n_i  (~cpu_reset),           // JTAG test reset pad
+    .jtag_trst_n_i  (trst_n),               // JTAG test reset pad
     .jtag_tms_i     (tms),                  // JTAG test mode select pad
     .jtag_tdi_i     (tdi),                  // JTAG test data input pad
     .jtag_tdo_o     (tdo),                  // JTAG test data output pad
@@ -319,9 +317,6 @@ cpu #(
     .cfg_rresp_o    (),                     // -- 2bit, responce
     .cfg_rvalid_o   (),                     // -- valid
     .cfg_rready_i   ('0),                   // -- ready
-    // -- IRQ
-    .cpucfg_irq_o   (),                     // CPU interrupt request to host
-    .ext_irq_i      ('0),
     // -- Boot mode
     .boot_mode_i    (1'b1),                 // 1'h0: idle; 1'h1: boot ROM;
     // -------------------------------------
@@ -358,27 +353,6 @@ cpu #(
     .cpu_rvalid_i   (cpu_rvalid ),                 // -- valid
     .cpu_rready_o   (cpu_rready ),                 // -- ready
     // -------------------------------------
-    // [64bit AXI lite bus master]
-    // -- write
-    .axilm_awaddr_o     (),             // -- 40bit, write address
-    .axilm_awvalid_o    (),             // -- valid
-    .axilm_awready_i    ('0),             // -- ready
-    .axilm_wdata_o      (),             // -- 64bit, write data
-    .axilm_wstrb_o      (),             // -- 64/8bit, write data strobe
-    .axilm_wvalid_o     (),             // -- valid
-    .axilm_wready_i     ('0),             // -- ready
-    .axilm_bresp_i      ('0),             // -- 2bit, responce
-    .axilm_bvalid_i     ('0),             // -- valid
-    .axilm_bready_o     (),             // -- ready
-    // -- read
-    .axilm_araddr_o     (),             // -- 40bit, read address
-    .axilm_arvalid_o    (),             // -- valid
-    .axilm_arready_i    ('0),             // -- ready
-    .axilm_rdata_i      ('0),             // -- 64bit, read data
-    .axilm_rresp_i      ('0),             // -- 2bit, responce
-    .axilm_rvalid_i     ('0),             // -- valid
-    .axilm_rready_o     (),             // -- ready
-    // -------------------------------------
     // [32bit AXI lite bus master]
     // -- write
     .axil32_awaddr_o    (axil32_awaddr ),            // -- 32bit, write address
@@ -405,8 +379,7 @@ cpu #(
     .uart_rxd_i         (rx),             // UART RXD
     // -------------------------------------
     // [SD]
-    // .sd_detect          (sd_detect  ),
-    .sd_detect          (1'b0),
+    .sd_detect          (sd_detect  ),
     .sd_clk             (sd_clk_out_internal),
     .sd_reset           (sd_reset   ),
     .sd_dat_i           (sd_dat_in  ),

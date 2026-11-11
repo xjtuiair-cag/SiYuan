@@ -432,41 +432,66 @@ package sy_pkg;
 
 `endif
 
+`ifndef SY_CORE_NUM
+  `define SY_CORE_NUM 2
+`endif
 
 //----------------------------------------------------------------------------------------------------------------------
 // Bus parameters
 //----------------------------------------------------------------------------------------------------------------------
-parameter integer CORE_NUM = sy_soc_pkg::CORE_NUM;
+parameter integer CORE_NUM = `SY_CORE_NUM;
+parameter DBGBase       = 64'h0000_0000;
+parameter DBGLength     = 64'h1000;
+parameter DRAMBase      = 64'h8000_0000;
+parameter DRAMLength    = 64'h8000_0000;
+parameter PLICBase      = 64'hC00_0000;
+parameter PLICLength    = 64'h400_0000;
+parameter CLINTBase     = 64'h200_0000;
+parameter CLINTLength   = 64'hC_0000;
+parameter UARTBase      = 64'h4181_0000;
+parameter UARTLength    = 64'h1000;
+parameter DMABase       = 64'h4182_0000;
+parameter DMALength     = 64'h1000;
+parameter REGMAPBase    = 64'h4184_0000;
+parameter REGMAPLength  = 64'h1_0000;
+parameter SDBase        = 64'h4185_0000;
+parameter SDLength      = 64'h7B_0000;
+parameter BOOTROMBase   = 64'h4200_0000;
+parameter BOOTROMLength = 64'h3E00_0000;
+
+parameter ReservedBase   = {64{1'b1}};
+parameter ReservedLength = 1;
+
 parameter integer ADDR_WIDTH = 64;
-parameter logic [ADDR_WIDTH-1:0] DEBUG_START  = sy_soc_pkg::DBGBase;
-parameter logic [ADDR_WIDTH-1:0] DEBUG_END    = sy_soc_pkg::DBGBase + sy_soc_pkg::DBGLength - 1;
+parameter logic [ADDR_WIDTH-1:0] DEBUG_START  = DBGBase;
+parameter logic [ADDR_WIDTH-1:0] DEBUG_END    = DBGBase + DBGLength - 1;
 
-parameter logic [ADDR_WIDTH-1:0] REGMAP_START  = sy_soc_pkg::REGMAPBase;
-parameter logic [ADDR_WIDTH-1:0] REGMAP_END    = sy_soc_pkg::REGMAPBase + sy_soc_pkg::REGMAPLength - 1;
+parameter logic [ADDR_WIDTH-1:0] REGMAP_START  = REGMAPBase;
+parameter logic [ADDR_WIDTH-1:0] REGMAP_END    = REGMAPBase + REGMAPLength - 1;
 
-parameter logic [ADDR_WIDTH-1:0] DRAM_START  = sy_soc_pkg::DRAMBase;
-parameter logic [ADDR_WIDTH-1:0] DRAM_END    = sy_soc_pkg::DRAMBase + sy_soc_pkg::DRAMLength - 1;
+parameter logic [ADDR_WIDTH-1:0] DRAM_START  = DRAMBase;
+parameter logic [ADDR_WIDTH-1:0] DRAM_END    = DRAMBase + DRAMLength - 1;
 
-parameter logic [ADDR_WIDTH-1:0] PLIC_START  = sy_soc_pkg::PLICBase;
-parameter logic [ADDR_WIDTH-1:0] PLIC_END    = sy_soc_pkg::PLICBase + sy_soc_pkg::PLICLength - 1;
+parameter logic [ADDR_WIDTH-1:0] PLIC_START  = PLICBase;
+parameter logic [ADDR_WIDTH-1:0] PLIC_END    = PLICBase + PLICLength - 1;
 
-parameter logic [ADDR_WIDTH-1:0] CLINT_START = sy_soc_pkg::CLINTBase;
-parameter logic [ADDR_WIDTH-1:0] CLINT_END   = sy_soc_pkg::CLINTBase + sy_soc_pkg::CLINTLength - 1;
+parameter logic [ADDR_WIDTH-1:0] CLINT_START = CLINTBase;
+parameter logic [ADDR_WIDTH-1:0] CLINT_END   = CLINTBase + CLINTLength - 1;
 
-parameter logic [ADDR_WIDTH-1:0] UART_START  = sy_soc_pkg::UARTBase;
-parameter logic [ADDR_WIDTH-1:0] UART_END    = sy_soc_pkg::UARTBase + sy_soc_pkg::UARTLength - 1;
+parameter logic [ADDR_WIDTH-1:0] UART_START  = UARTBase;
+parameter logic [ADDR_WIDTH-1:0] UART_END    = UARTBase + UARTLength - 1;
 
-parameter logic [ADDR_WIDTH-1:0] DMA_START   = sy_soc_pkg::DMABase;
-parameter logic [ADDR_WIDTH-1:0] DMA_END     = sy_soc_pkg::DMABase + sy_soc_pkg::DMALength - 1;
+parameter logic [ADDR_WIDTH-1:0] DMA_START   = DMABase;
+parameter logic [ADDR_WIDTH-1:0] DMA_END     = DMABase + DMALength - 1;
 
-parameter logic [ADDR_WIDTH-1:0] SD_START   = sy_soc_pkg::SDBase;
-parameter logic [ADDR_WIDTH-1:0] SD_END     = sy_soc_pkg::SDBase + sy_soc_pkg::SDLength - 1;
+parameter logic [ADDR_WIDTH-1:0] SD_START   = SDBase;
+parameter logic [ADDR_WIDTH-1:0] SD_END     = SDBase + SDLength - 1;
 
-parameter logic [ADDR_WIDTH-1:0] BOOTROM_START  = sy_soc_pkg::BOOTROMBase;
-parameter logic [ADDR_WIDTH-1:0] BOOTROM_END    = sy_soc_pkg::BOOTROMBase + sy_soc_pkg::BOOTROMLength - 1;
+parameter logic [ADDR_WIDTH-1:0] BOOTROM_START  = BOOTROMBase;
+parameter logic [ADDR_WIDTH-1:0] BOOTROM_END    = BOOTROMBase + BOOTROMLength - 1;
 
-parameter logic [ADDR_WIDTH-1:0] RESERVED_START   = sy_soc_pkg::ReservedBase;
-parameter logic [ADDR_WIDTH-1:0] RESERVED_END     = sy_soc_pkg::ReservedBase+ sy_soc_pkg::ReservedLength - 1;
+parameter logic [ADDR_WIDTH-1:0] RESERVED_START   = ReservedBase;
+parameter logic [ADDR_WIDTH-1:0] RESERVED_END     = ReservedBase+ ReservedLength - 1;
     
 // location in each bus
 parameter DMEM      = 0;

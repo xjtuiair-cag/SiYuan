@@ -5,7 +5,10 @@ set boardNameShort $::env(BOARD)
 set ipName xlnx_mig_7_ddr3
 
 create_project $ipName . -force -part $partNumber
-set_property board_part $boardName [current_project]
+# Board files optional; MIG uses mig_${boardNameShort}.prj with Custom interfaces.
+if {$boardName ne "" && [catch {set_property board_part $boardName [current_project]} err]} {
+    puts "WARNING: board_part '$boardName' unavailable ($err); continuing with part only"
+}
 
 create_ip -name mig_7series -vendor xilinx.com -library ip -module_name $ipName
 

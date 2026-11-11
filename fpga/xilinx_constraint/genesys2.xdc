@@ -1,3 +1,14 @@
+## Bitstream / QSPI flash (SPIx4) — required for write_cfgmem -interface SPIx4
+## Genesys2: S25FL256S, 256 Mbit, bank0 @ 3.3V
+set_property BITSTREAM.GENERAL.COMPRESS TRUE [current_design]
+set_property CONFIG_VOLTAGE 3.3 [current_design]
+set_property CFGBVS VCCO [current_design]
+set_property CONFIG_MODE SPIx4 [current_design]
+set_property BITSTREAM.CONFIG.SPI_BUSWIDTH 4 [current_design]
+set_property BITSTREAM.CONFIG.SPI_32BIT_ADDR YES [current_design]
+set_property BITSTREAM.CONFIG.CONFIGRATE 50 [current_design]
+set_property BITSTREAM.CONFIG.SPI_FALL_EDGE YES [current_design]
+
 ## Buttons
 set_property -dict {PACKAGE_PIN R19 IOSTANDARD LVCMOS33} [get_ports cpu_resetn]
 
@@ -26,6 +37,6 @@ set_property -dict { PACKAGE_PIN R28   IOSTANDARD LVCMOS33 } [get_ports { sd_scl
 set_max_delay -to   [get_ports tdo ] 20
 set_max_delay -from [get_ports tms ] 20
 set_max_delay -from [get_ports tdi ] 20
-set_max_delay -from [get_ports trst ] 20
+set_max_delay -from [get_ports trst_n ] 20
 
 create_generated_clock -name clk_fpu -source [get_pins i_xlnx_clk_gen0/clk_out1] -divide_by 2 [get_pins cpu_inst/SiYuan_top_inst/clk_fpu_reg/Q]

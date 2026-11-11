@@ -3,7 +3,10 @@ set boardName  $::env(XILINX_BOARD)
 
 set ipName div64x64_d20_us
 create_project $ipName . -force -part $partNumber
-set_property board_part $boardName [current_project]
+# Board files optional; part + explicit IP config are enough.
+if {$boardName ne "" && [catch {set_property board_part $boardName [current_project]} err]} {
+    puts "WARNING: board_part '$boardName' unavailable ($err); continuing with part only"
+}
 
 create_ip -name div_gen -vendor xilinx.com -library ip -version 5.1 -module_name $ipName
 

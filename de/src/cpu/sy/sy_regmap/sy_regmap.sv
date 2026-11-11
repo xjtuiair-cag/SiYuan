@@ -29,7 +29,6 @@
 module sy_regmap
     import sy_pkg::*;
 # (
-    parameter CORE_NUM   = sy_soc_pkg::CORE_NUM,
     parameter BASE_ADDR  = 64'h61_0000,
     parameter ADDR_WIDTH = 32,
     parameter DATA_WIDTH = 32,

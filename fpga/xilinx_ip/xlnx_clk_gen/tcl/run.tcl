@@ -4,7 +4,10 @@ set boardName  $::env(XILINX_BOARD)
 set ipName xlnx_clk_gen
 
 create_project $ipName . -force -part $partNumber
-set_property board_part $boardName [current_project]
+# Board files optional; part + explicit IP config / mig_*.prj are enough.
+if {$boardName ne "" && [catch {set_property board_part $boardName [current_project]} err]} {
+    puts "WARNING: board_part '$boardName' unavailable ($err); continuing with part only"
+}
 
 create_ip -name clk_wiz -vendor xilinx.com -library ip -module_name $ipName
 
