@@ -17,13 +17,13 @@ If you want to build SiYuan from scratch, please follow the steps in [fpga_build
 Follow the steps in [simulation user guide](https://github.com/xjtuiair-cag/SiYuan/blob/master/doc/sim_user_guide.md) to run simulation.
 
 # Dirctory Structure
-- config : configuration files for SiYuan.
-  - scripts : scripts to generate source files
+- scripts : helper scripts (`gen_dts.py`, `expand_vc.py`, …)
 - de  : design files
   - inc     : head files of SiYuan.
   - src     : source files of SiYuan. It contain cache system, tilelink bus, pipeline and so on.
   - ip      : plic/fpu/uart from other repositories.
   - utils   : common files, include fifo, arbiter and so on. some of them are from `ariane`.
+  - vc      : RTL file lists
 - dv : simulation files
   - simulation : simulation work directory
   - tb : testbench
@@ -36,13 +36,15 @@ Follow the steps in [simulation user guide](https://github.com/xjtuiair-cag/SiYu
   - xilinx_scripts    : Tcl scripts to generate bitstream.
 
 # Change configuration
-If you want to change default configuration, please make sure you have install `python3` and `riscv64-unknown-elf-gcc`. 
+Core count is selected at compile time (shared by simulation and FPGA):
 
-1. Prepare your configuration file and put it in `config/`.
+```sh
+make gen_src CORE_NUM=4    # refresh per-config bootrom DTS
+make sim CORE_NUM=4
+make fpga CORE_NUM=4       # -> fpga/build/<BOARD>/normal_4cores/
+```
 
-2. Run `make gen_src CONFIG=file_name` to generate source files. `file_name` is the config stem under `config/` (no `.yaml`), e.g. `2_cores` or `4_cores`. 
-
-`base.yaml` is the default configuration file. We suggest only change the `Core_num` in configuration file, and the core number is no more than 4 due to the limitation of the resource in FPGA.
+`SY_CORE_NUM` is passed as a Verilog define into `de/inc/sy_pkg.sv` (`parameter CORE_NUM`). The peripheral address map in that file is fixed. Each FPGA config is isolated under `fpga/build/<BOARD>/<BOOTROM_TYPE>_<N>cores/` (local `bootrom/` + `ip/`), so different `CORE_NUM` / bootrom builds can run in parallel.
 
 # Future plan
 
