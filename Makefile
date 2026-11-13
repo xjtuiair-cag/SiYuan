@@ -137,7 +137,10 @@ help:
 	@echo "    tree: fpga/build/<BOARD>/<BOOTROM_TYPE>_<N>cores/{bootrom,ip,*.bit}"
 	@echo ""
 	@echo "  Clean:"
-	@echo "    make clean"
+	@echo "    make clean_sim                 # dv/simulation"
+	@echo "    make clean_fpga                # fpga/build + fpga/Debug/debug_test_*"
+	@echo "    make clean                     # clean_sim + clean_fpga"
+	@echo "    make clean_test                # clean dv/tests software only"
 	@echo ""
 	@echo "RTL filelist: $(CPU_VC)"
 
@@ -253,11 +256,25 @@ fpga_gui: fpga_sources
 # =============================================================================
 # Clean
 # =============================================================================
-.PHONY: clean clean_test
-clean:
+DEBUG_TEST_DIRS := $(wildcard $(FPGA_DIR)/Debug/debug_test_*)
+
+.PHONY: clean clean_sim clean_fpga clean_test
+
+clean_sim:
+	@echo "[CLEAN] simulation"
 	-$(MAKE) -C $(SIM_DIR) clean DE_HOME="$(DE_HOME)" DV_HOME="$(DV_HOME)"
+
+clean_fpga:
+	@echo "[CLEAN] fpga build"
 	-$(MAKE) -C $(FPGA_DIR) clean
 	@rm -f $(FPGA_DIR)/xilinx_scripts/add_sources.tcl
+	@echo "[CLEAN] fpga Debug tests"
+	@for d in $(DEBUG_TEST_DIRS); do \
+		echo "  -> $$(basename $$d)"; \
+		$(MAKE) -C $$d clean || true; \
+	done
+
+clean: clean_sim clean_fpga
 
 clean_test:
 	-$(MAKE) -C $(SIM_DIR) clean_test DE_HOME="$(DE_HOME)" DV_HOME="$(DV_HOME)"

@@ -34,9 +34,13 @@ set_property -dict { PACKAGE_PIN T30   IOSTANDARD LVCMOS33 } [get_ports { sd_dat
 set_property -dict { PACKAGE_PIN AE24  IOSTANDARD LVCMOS33 } [get_ports { sd_reset }]; #IO_L12N_T1_MRCC_12 Sch=sd_reset
 set_property -dict { PACKAGE_PIN R28   IOSTANDARD LVCMOS33 } [get_ports { sd_sclk }]; #IO_L11P_T1_SRCC_14 Sch=sd_sclk
 
-set_max_delay -to   [get_ports tdo ] 20
-set_max_delay -from [get_ports tms ] 20
-set_max_delay -from [get_ports tdi ] 20
-set_max_delay -from [get_ports trst_n ] 20
+create_clock -period 100.000 -name tck -waveform {0.000 50.000} [get_ports tck]
+set_input_jitter tck 1.000
+
+# minimize routing delay
+set_input_delay  -clock tck -clock_fall 5 [get_ports tdi    ]
+set_input_delay  -clock tck -clock_fall 5 [get_ports tms    ]
+set_output_delay -clock tck             5 [get_ports tdo    ]
+set_false_path   -from                    [get_ports trst_n ] 
 
 create_generated_clock -name clk_fpu -source [get_pins i_xlnx_clk_gen0/clk_out1] -divide_by 2 [get_pins cpu_inst/SiYuan_top_inst/clk_fpu_reg/Q]
